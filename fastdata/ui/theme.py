@@ -65,6 +65,30 @@ QLabel#MutedText {
     color: #9aa3b2;
 }
 
+QLineEdit,
+QPlainTextEdit,
+QComboBox,
+QSpinBox {
+    color: #d8deea;
+    background: #20232b;
+    border: 1px solid #313644;
+    border-radius: 4px;
+    padding: 5px 7px;
+    selection-background-color: #4f678a;
+}
+
+QPushButton {
+    color: #d8deea;
+    background: #252a34;
+    border: 1px solid #3a4150;
+    border-radius: 4px;
+    padding: 5px 8px;
+}
+
+QPushButton:hover {
+    background: #303746;
+}
+
 QTextEdit#LogPanel {
     color: #c6ccd8;
     padding: 8px;

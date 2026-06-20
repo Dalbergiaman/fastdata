@@ -798,7 +798,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 ```text
 [x] A：项目基础与主窗口骨架
 [x] B：核心功能与配置层
-[ ] C：节点系统与执行流程
+[x] C：节点系统与执行流程
 [ ] D：工作流、打包与验收
 ```
 
@@ -1004,7 +1004,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 参数构造与图生图区分清楚。
 - 下载结果保存到输出目录。
 
-### [ ] C：节点系统与执行流程
+### [x] C：节点系统与执行流程
 
 目标：把核心功能映射为节点，并让节点之间通过端口传递路径、Prompt 和输出目录。
 
@@ -1037,7 +1037,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 节点参数可在右侧属性面板编辑。
 - 参数变化能保存到节点数据。
 
-#### [ ] C-3：实现生成节点
+#### [x] C-3：实现生成节点
 
 实现内容：
 
@@ -1052,7 +1052,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 缺少必要输入时阻止运行并提示。
 - 可调用核心生成函数。
 
-#### [ ] C-4：实现图片处理节点
+#### [x] C-4：实现图片处理节点
 
 实现内容：
 
@@ -1068,7 +1068,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 缺少 `output_folder` 时阻止运行并提示。
 - 节点能调用对应核心函数。
 
-#### [ ] C-5：实现 Prompt Batch Generate 节点
+#### [x] C-5：实现 Prompt Batch Generate 节点
 
 实现内容：
 
@@ -1081,7 +1081,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 可通过节点生成 txt 文件。
 - 缺少 Prompt 或输出目录时给出明确提示。
 
-#### [ ] C-6：实现属性面板
+#### [x] C-6：实现属性面板
 
 实现内容：
 
@@ -1096,7 +1096,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 修改参数后节点数据同步更新。
 - 长路径和长 Prompt 不导致节点本体截断。
 
-#### [ ] C-7：实现节点执行器
+#### [x] C-7：实现节点执行器
 
 实现内容：
 

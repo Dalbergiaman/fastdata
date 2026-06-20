@@ -5,7 +5,11 @@ import sys
 from PySide6 import QtCore, QtGui, QtWidgets
 
 from fastdata.ui.graph import GraphWidget
+from fastdata.ui.property_panel import PropertyPanel
 from fastdata.ui.theme import apply_app_theme
+from fastdata.ui.workers import NodeWorker, build_node_runner
+from fastdata.core.generator import StopToken
+from fastdata.nodes.base import NodeStatus
 
 
 WINDOW_TITLE = "FastData NodeGraph"
@@ -41,11 +45,17 @@ class MainWindow(QtWidgets.QMainWindow):
 
         self.graph_widget = GraphWidget(self)
         self.node_library = self._build_node_library()
-        self.property_panel = self._build_property_panel()
+        self.property_panel = PropertyPanel(self)
         self.log_panel = self._build_log_panel()
+        self._worker_thread: QtCore.QThread | None = None
+        self._worker: NodeWorker | None = None
+        self._stop_token: StopToken | None = None
+        self.run_action: QtGui.QAction | None = None
+        self.stop_action: QtGui.QAction | None = None
 
         self._build_toolbar()
         self._build_layout()
+        self.graph_widget.graph.node_selection_changed.connect(self._on_node_selection_changed)
         self.set_status("Ready")
 
     def _build_toolbar(self) -> None:
@@ -57,6 +67,13 @@ class MainWindow(QtWidgets.QMainWindow):
         for label in ("New", "Open", "Save", "Run", "Stop", "Settings"):
             action = QtGui.QAction(label, self)
             toolbar.addAction(action)
+            if label == "Run":
+                self.run_action = action
+                action.triggered.connect(self.run_selected_node)
+            elif label == "Stop":
+                self.stop_action = action
+                action.triggered.connect(self.stop_current_task)
+                action.setEnabled(False)
             if label in {"Save", "Stop"}:
                 toolbar.addSeparator()
 
@@ -86,24 +103,6 @@ class MainWindow(QtWidgets.QMainWindow):
                 item.nodeRequested.connect(self.add_node_to_graph)
                 layout.addWidget(item)
 
-        layout.addStretch(1)
-        return panel
-
-    def _build_property_panel(self) -> QtWidgets.QWidget:
-        panel = QtWidgets.QFrame(self)
-        panel.setObjectName("SidePanel")
-        layout = QtWidgets.QVBoxLayout(panel)
-        layout.setContentsMargins(14, 14, 14, 14)
-        layout.setSpacing(10)
-
-        title = QtWidgets.QLabel("Properties", panel)
-        title.setObjectName("PanelTitle")
-        layout.addWidget(title)
-
-        placeholder = QtWidgets.QLabel("Select a node to edit its parameters.", panel)
-        placeholder.setObjectName("MutedText")
-        placeholder.setWordWrap(True)
-        layout.addWidget(placeholder)
         layout.addStretch(1)
         return panel
 
@@ -144,6 +143,79 @@ class MainWindow(QtWidgets.QMainWindow):
             self.set_status(str(error))
             return
         self.set_status(f"Created node: {node_name}")
+
+    def _on_node_selection_changed(self, selected_nodes, deselected_nodes) -> None:
+        del deselected_nodes
+        if not selected_nodes:
+            self.property_panel.set_node(None)
+            return
+        self.property_panel.set_node(selected_nodes[-1])
+
+    def run_selected_node(self) -> None:
+        if self._worker_thread is not None:
+            self.set_status("A node is already running.")
+            return
+
+        selected_nodes = self.graph_widget.graph.selected_nodes()
+        if not selected_nodes:
+            self.set_status("Select a node to run.")
+            return
+
+        node = selected_nodes[-1]
+        self._stop_token = StopToken()
+        try:
+            runner = build_node_runner(node, self._stop_token)
+        except Exception as error:
+            node.set_status(NodeStatus.ERROR, str(error))
+            self.set_status(str(error))
+            return
+
+        node.set_status(NodeStatus.RUNNING, "Running")
+        self.set_status(f"Running node: {node.name()}")
+        self._worker_thread = QtCore.QThread(self)
+        self._worker = NodeWorker(node, runner)
+        self._worker.moveToThread(self._worker_thread)
+        self._worker_thread.started.connect(self._worker.run)
+        self._worker.progress.connect(lambda current, total: self.set_status(f"{node.name()}: {current}/{total}"))
+        self._worker.finished.connect(lambda result: self._on_node_finished(node, result))
+        self._worker.failed.connect(lambda message: self._on_node_failed(node, message))
+        self._worker.finished.connect(self._cleanup_worker)
+        self._worker.failed.connect(self._cleanup_worker)
+        self._worker_thread.start()
+        if self.run_action:
+            self.run_action.setEnabled(False)
+        if self.stop_action:
+            self.stop_action.setEnabled(True)
+
+    def stop_current_task(self) -> None:
+        if self._stop_token:
+            self._stop_token.stop()
+            self.set_status("Stop requested.")
+
+    def _on_node_finished(self, node, result) -> None:
+        node.set_status(NodeStatus.SUCCESS, "Done")
+        count = len(result) if isinstance(result, list) else 1
+        self.set_status(f"{node.name()} finished: {count} result(s)")
+
+    def _on_node_failed(self, node, message: str) -> None:
+        node.set_status(NodeStatus.ERROR, message)
+        self.set_status(f"{node.name()} failed: {message}")
+
+    def _cleanup_worker(self) -> None:
+        if self._worker_thread:
+            self._worker_thread.quit()
+            self._worker_thread.wait()
+        if self._worker:
+            self._worker.deleteLater()
+        if self._worker_thread:
+            self._worker_thread.deleteLater()
+        self._worker = None
+        self._worker_thread = None
+        self._stop_token = None
+        if self.run_action:
+            self.run_action.setEnabled(True)
+        if self.stop_action:
+            self.stop_action.setEnabled(False)
 
 
 class NodeLibraryItem(QtWidgets.QLabel):

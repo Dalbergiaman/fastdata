@@ -1,4 +1,3 @@
-import ctypes
 import argparse
 import sys
 
@@ -15,22 +14,15 @@ from fastdata.nodes.base import NodeStatus
 
 WINDOW_TITLE = "FastData NodeGraph"
 DEFAULT_SIZE = (1440, 900)
-MINIMUM_SIZE = (1100, 700)
+MINIMUM_SIZE = (960, 640)
 DEFAULT_FONT_FAMILY = "Microsoft YaHei UI"
 DEFAULT_FONT_SIZE = 10
 
 
 def enable_dpi_awareness() -> None:
-    if sys.platform != "win32":
-        return
-
-    try:
-        ctypes.windll.shcore.SetProcessDpiAwareness(1)
-    except Exception:
-        try:
-            ctypes.windll.user32.SetProcessDPIAware()
-        except Exception:
-            pass
+    # Qt6/PySide6 sets Windows DPI awareness by default. Calling the Windows
+    # DPI API again can print SetProcessDpiAwarenessContext access warnings.
+    return
 
 
 def configure_font(app: QtWidgets.QApplication) -> None:
@@ -314,7 +306,7 @@ def main(argv: list[str] | None = None) -> int:
 
     app = create_app(argv)
     window = MainWindow()
-    window.show()
+    window.showMaximized()
     if args.smoke_test:
         QtCore.QTimer.singleShot(1000, app.quit)
     return app.exec()

@@ -120,7 +120,7 @@ FastData NodeGraph
 - 连线使用细线和柔和颜色，选中态清晰但不过分刺眼。
 - 右侧属性面板保持表单清晰，不堆叠过多边框。
 - 字体优先使用 `Microsoft YaHei UI`。
-- Windows 下启动时启用 DPI awareness，避免高 DPI 模糊。
+- Qt6/PySide6 使用默认高 DPI 感知；项目不重复调用 Windows DPI API，避免启动时出现 `SetProcessDpiAwarenessContext()` 权限警告。
 
 第一版不做浅色/深色主题切换。主题方向以深色、简洁、低噪音为准，通过 Qt stylesheet、NodeGraphQt viewer/background 设置和节点颜色配置统一观感。
 
@@ -424,9 +424,9 @@ fill_crop
 
 对应参考功能：`resize_to_1024.resize_folder_to_1024_rgb_png(...)`，但需要从固定 1024 改造为自定义宽高。
 
-## 默认工作流
+## 默认工作流模板
 
-第一版启动时应提供几个预设工作流模板，减少用户从空画布开始的压力。
+第一版启动时默认显示空画布。后续通过工具栏或模板入口提供几个预设工作流模板，减少用户从零搭建的压力。
 
 ### 图生图工作流
 
@@ -637,7 +637,7 @@ fastdata/
 - 创建 `fastdata/ui/main_window.py`。
 - 安装并验证 NodeGraphQt 与选定 Qt 绑定。
 - 启动一个空 NodeGraphQt 画布。
-- 设置窗口标题、默认尺寸、DPI awareness、基础字体。
+- 设置窗口标题、默认尺寸、基础字体。
 
 验证标准：
 
@@ -662,7 +662,7 @@ fastdata/
 
 - 界面默认为深色。
 - 节点、连线、属性面板清晰可读。
-- 高 DPI 下字体不模糊。
+- 高 DPI 下界面不明显模糊，且启动时不出现重复设置 DPI awareness 的权限警告。
 
 ### Phase 3：配置与路径系统
 
@@ -828,14 +828,14 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 创建 `fastdata/ui/main_window.py`。
 - 使用 PySide6 创建主窗口。
 - 设置窗口标题、默认尺寸、最小尺寸。
-- Windows 下启用 DPI awareness。
+- 依赖 Qt6/PySide6 默认高 DPI 感知，不额外调用 Windows DPI API。
 - 使用 `Microsoft YaHei UI` 作为默认字体。
 
 验证标准：
 
 - `uv run python app.py` 能打开空主窗口。
 - 关闭窗口无异常。
-- 高 DPI 下界面不明显模糊。
+- 高 DPI 下界面不明显模糊，且启动时不出现重复设置 DPI awareness 的权限警告。
 
 #### [x] A-3：嵌入 NodeGraphQt 画布
 

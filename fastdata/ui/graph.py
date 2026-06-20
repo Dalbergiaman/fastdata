@@ -23,7 +23,6 @@ class GraphWidget(QtWidgets.QWidget):
         super().__init__(parent)
         self.graph = NodeGraph()
         self._register_nodes()
-        self._build_start_graph()
 
         layout = QtWidgets.QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -32,11 +31,6 @@ class GraphWidget(QtWidgets.QWidget):
     def _register_nodes(self) -> None:
         for node_class in NODE_CLASSES:
             self.graph.register_node(node_class, alias=NODE_ALIASES[node_class.NODE_NAME])
-
-    def _build_start_graph(self) -> None:
-        self.create_node("Path Input", pos=[-360, -100])
-        self.create_node("Prompt Input", pos=[-360, 80])
-        self.create_node("Output Folder", pos=[20, 0])
 
     def create_node(self, node_name: str, pos: list[int] | None = None):
         alias = NODE_ALIASES.get(node_name)

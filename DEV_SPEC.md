@@ -134,7 +134,8 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 - 节点标题保持短名称，例如 `Img2Img`、`Image To PNG`、`Resize Image`。
 - 节点本体只展示端口、少量关键状态和必要的短控件。
-- 长 Prompt、长路径、完整错误信息、复杂参数放在右侧属性面板或底部日志区，不直接塞进节点本体。
+- Prompt Input 节点在画布中直接显示并编辑多行 Prompt，便于像 ComfyUI 一样直观看到提示词内容。
+- 长路径、完整错误信息、复杂参数放在右侧属性面板、设置弹窗或底部日志区，不直接塞进节点本体。
 - 节点端口名使用短标签，必要时通过 tooltip 显示完整说明。
 - 如果节点内容超过默认宽度，优先扩大节点默认最小宽度或减少节点内嵌文本，不采用让文本硬挤或遮挡端口的做法。
 - 如后续确实需要用户手动调整业务节点大小，再实现自定义节点图形项或节点尺寸属性；第一版不做普通业务节点的拖拽缩放。
@@ -234,14 +235,9 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 参数：
 
-- `api_key`
-- `base_url`
 - `model`
 - `aspect_ratio`
 - `image_size`
-- `concurrency`
-- `poll_interval`
-- `max_retries`
 - `only_missing`
 
 输出：
@@ -261,15 +257,10 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 参数：
 
-- `api_key`
-- `base_url`
 - `model`
 - `aspect_ratio`
 - `image_size`
 - `count`
-- `concurrency`
-- `poll_interval`
-- `max_retries`
 
 输出：
 
@@ -409,6 +400,8 @@ auto
 - `resize_mode`
 - `overwrite`
 
+实现注意：NodeGraphQt 自身保留 `width`、`height` 作为节点尺寸属性，代码内部使用 `target_width`、`target_height` 保存业务宽高，UI 标签仍显示为 `Width`、`Height`。
+
 输出：
 
 - `resized_images`
@@ -490,7 +483,13 @@ Output Folder -> Prompt Batch Generate
 
 第一版采用保守执行模型：
 
-- 用户点击工具栏“运行”后执行当前选中的处理节点，或执行当前工作流中被标记为主任务的处理节点。
+- 用户点击工具栏“运行”后执行当前选中处理节点及其上游可执行依赖，也就是 `Run To Selected`。
+- 如果上游是处理节点，下游会优先使用该上游节点本次执行结果所在的输出目录作为输入。
+- 输入节点和 Output Folder 节点只提供参数，不作为可执行节点运行。
+- 当前不自动执行选中节点的下游节点；用户应选中链路末端想要得到结果的处理节点。
+- 用户可通过工具栏 Delete 或键盘 Delete/Backspace 删除选中节点。
+- 工具栏 New、Open、Save 分别创建空工作流、打开工作流 JSON、保存当前工作流 JSON。
+- Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数和默认生成参数。
 - 暂不实现复杂自动调度、缓存失效、并行 DAG 执行。
 - 每个业务节点内部可以使用现有函数的批处理能力。
 - 长耗时任务必须放到后台线程或 Qt worker 中执行，不能阻塞 Qt 主线程。
@@ -549,6 +548,7 @@ API Key 安全原则：
 - 不写死在代码中。
 - 不提交到 Git。
 - 配置面板使用密码输入框。
+- API Key、base_url、concurrency、poll_interval、max_retries 使用 Settings 全局配置，不放在单个生成节点里。
 - 日志中只允许显示脱敏形式，例如 `sk-...abcd`。
 - 允许后续增加环境变量读取，但第一版以本地配置为主。
 

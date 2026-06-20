@@ -6,8 +6,9 @@ from PySide6 import QtCore, QtGui, QtWidgets
 
 from fastdata.ui.graph import GraphWidget
 from fastdata.ui.property_panel import PropertyPanel
+from fastdata.ui.settings_dialog import SettingsDialog
 from fastdata.ui.theme import apply_app_theme
-from fastdata.ui.workers import NodeWorker, build_node_runner
+from fastdata.ui.workers import NodeWorker, build_execution_plan, execute_node_sequence
 from fastdata.core.generator import StopToken
 from fastdata.nodes.base import NodeStatus
 
@@ -52,6 +53,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_token: StopToken | None = None
         self.run_action: QtGui.QAction | None = None
         self.stop_action: QtGui.QAction | None = None
+        self.current_workflow_path: str | None = None
 
         self._build_toolbar()
         self._build_layout()
@@ -64,17 +66,27 @@ class MainWindow(QtWidgets.QMainWindow):
         toolbar.setIconSize(QtCore.QSize(18, 18))
         self.addToolBar(QtCore.Qt.TopToolBarArea, toolbar)
 
-        for label in ("New", "Open", "Save", "Run", "Stop", "Settings"):
+        for label in ("New", "Open", "Save", "Delete", "Run", "Stop", "Settings"):
             action = QtGui.QAction(label, self)
             toolbar.addAction(action)
-            if label == "Run":
+            if label == "New":
+                action.triggered.connect(self.new_workflow)
+            elif label == "Open":
+                action.triggered.connect(self.open_workflow)
+            elif label == "Save":
+                action.triggered.connect(self.save_workflow)
+            elif label == "Delete":
+                action.triggered.connect(self.delete_selected_nodes)
+            elif label == "Run":
                 self.run_action = action
                 action.triggered.connect(self.run_selected_node)
             elif label == "Stop":
                 self.stop_action = action
                 action.triggered.connect(self.stop_current_task)
                 action.setEnabled(False)
-            if label in {"Save", "Stop"}:
+            elif label == "Settings":
+                action.triggered.connect(self.open_settings)
+            if label in {"Save", "Delete", "Stop"}:
                 toolbar.addSeparator()
 
     def _build_node_library(self) -> QtWidgets.QWidget:
@@ -144,6 +156,51 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         self.set_status(f"Created node: {node_name}")
 
+    def new_workflow(self) -> None:
+        self.graph_widget.graph.clear_session()
+        self.current_workflow_path = None
+        self.property_panel.set_node(None)
+        self.set_status("New workflow")
+
+    def open_workflow(self) -> None:
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Workflow", "workflows", "Workflow (*.json)")
+        if not path:
+            return
+        self.graph_widget.graph.load_session(path)
+        self.current_workflow_path = path
+        self.set_status(f"Opened workflow: {path}")
+
+    def save_workflow(self) -> None:
+        path = self.current_workflow_path
+        if not path:
+            path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Workflow", "workflows/workflow.json", "Workflow (*.json)")
+        if not path:
+            return
+        self.graph_widget.graph.save_session(path)
+        self.current_workflow_path = path
+        self.set_status(f"Saved workflow: {path}")
+
+    def open_settings(self) -> None:
+        dialog = SettingsDialog(self)
+        if dialog.exec() == QtWidgets.QDialog.Accepted:
+            self.set_status("Settings saved")
+
+    def delete_selected_nodes(self) -> None:
+        selected = self.graph_widget.graph.selected_nodes()
+        if not selected:
+            self.set_status("Select node(s) to delete.")
+            return
+        self.graph_widget.graph.delete_nodes(selected)
+        self.property_panel.set_node(None)
+        self.set_status(f"Deleted {len(selected)} node(s)")
+
+    def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
+        if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
+            self.delete_selected_nodes()
+            event.accept()
+            return
+        super().keyPressEvent(event)
+
     def _on_node_selection_changed(self, selected_nodes, deselected_nodes) -> None:
         del deselected_nodes
         if not selected_nodes:
@@ -164,20 +221,22 @@ class MainWindow(QtWidgets.QMainWindow):
         node = selected_nodes[-1]
         self._stop_token = StopToken()
         try:
-            runner = build_node_runner(node, self._stop_token)
+            plan = build_execution_plan(node)
+            runner = lambda progress: execute_node_sequence(plan, self._stop_token, progress)
         except Exception as error:
             node.set_status(NodeStatus.ERROR, str(error))
             self.set_status(str(error))
             return
 
-        node.set_status(NodeStatus.RUNNING, "Running")
-        self.set_status(f"Running node: {node.name()}")
+        for plan_node in plan:
+            plan_node.set_status(NodeStatus.RUNNING, "Queued")
+        self.set_status(f"Running to selected: {' -> '.join(plan_node.name() for plan_node in plan)}")
         self._worker_thread = QtCore.QThread(self)
         self._worker = NodeWorker(node, runner)
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)
-        self._worker.progress.connect(lambda current, total: self.set_status(f"{node.name()}: {current}/{total}"))
-        self._worker.finished.connect(lambda result: self._on_node_finished(node, result))
+        self._worker.progress.connect(lambda current, total: self.set_status(f"Workflow: {current}/{total} node(s)"))
+        self._worker.finished.connect(lambda result: self._on_node_finished(plan, result))
         self._worker.failed.connect(lambda message: self._on_node_failed(node, message))
         self._worker.finished.connect(self._cleanup_worker)
         self._worker.failed.connect(self._cleanup_worker)
@@ -192,10 +251,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self._stop_token.stop()
             self.set_status("Stop requested.")
 
-    def _on_node_finished(self, node, result) -> None:
-        node.set_status(NodeStatus.SUCCESS, "Done")
-        count = len(result) if isinstance(result, list) else 1
-        self.set_status(f"{node.name()} finished: {count} result(s)")
+    def _on_node_finished(self, plan, result) -> None:
+        for node in plan:
+            node.set_status(NodeStatus.SUCCESS, "Done")
+        count = len(result.get("results", [])) if isinstance(result, dict) else 1
+        self.set_status(f"Workflow finished: {count} node(s)")
 
     def _on_node_failed(self, node, message: str) -> None:
         node.set_status(NodeStatus.ERROR, message)

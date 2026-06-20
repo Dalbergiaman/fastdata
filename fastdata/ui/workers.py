@@ -1,4 +1,5 @@
 import asyncio
+from pathlib import Path
 from typing import Any, Callable
 
 from PySide6 import QtCore
@@ -15,6 +16,17 @@ from fastdata.nodes.base import FastDataNode
 
 class NodeExecutionError(RuntimeError):
     pass
+
+
+EXECUTABLE_NODE_NAMES = {
+    "Image To PNG",
+    "Image To JPG",
+    "Resize Match",
+    "Resize Image",
+    "Prompt Batch Generate",
+    "Img2Img",
+    "Text2Img",
+}
 
 
 class NodeWorker(QtCore.QObject):
@@ -46,6 +58,14 @@ def connected_node(node: FastDataNode, input_name: str) -> FastDataNode | None:
     return connected_ports[0].node()
 
 
+def node_type_name(node: FastDataNode) -> str:
+    return getattr(type(node), "NODE_NAME", node.name())
+
+
+def is_executable_node(node: FastDataNode) -> bool:
+    return node_type_name(node) in EXECUTABLE_NODE_NAMES
+
+
 def require_connected_property(node: FastDataNode, input_name: str, property_name: str) -> Any:
     source = connected_node(node, input_name)
     if source is None:
@@ -56,17 +76,51 @@ def require_connected_property(node: FastDataNode, input_name: str, property_nam
     return value
 
 
+def result_output_dir(result: Any) -> str | None:
+    if not isinstance(result, list):
+        return None
+    output_paths = [
+        Path(item["output"])
+        for item in result
+        if isinstance(item, dict) and item.get("output")
+    ]
+    if not output_paths:
+        return None
+    return str(output_paths[0].parent)
+
+
+def resolve_folder_input(node: FastDataNode, input_name: str, context: dict[int, Any]) -> str:
+    source = connected_node(node, input_name)
+    if source is None:
+        raise NodeExecutionError(f"Missing connection: {input_name}")
+
+    folder_path = source.get_property("folder_path") if source.has_property("folder_path") else None
+    if folder_path:
+        return str(folder_path)
+
+    output_dir = result_output_dir(context.get(id(source)))
+    if output_dir:
+        return output_dir
+
+    raise NodeExecutionError(f"Missing folder input from: {source.name()}")
+
+
+def resolve_prompt_input(node: FastDataNode, input_name: str) -> str:
+    source = connected_node(node, input_name)
+    if source is None:
+        raise NodeExecutionError(f"Missing connection: {input_name}")
+    prompt = source.get_property("prompt_text") if source.has_property("prompt_text") else None
+    if not prompt:
+        raise NodeExecutionError(f"Missing prompt from: {source.name()}")
+    return str(prompt)
+
+
 def build_generation_config(node: FastDataNode) -> dict[str, Any]:
     config = load_config()
     for key in (
-        "api_key",
-        "base_url",
         "model",
         "aspect_ratio",
         "image_size",
-        "concurrency",
-        "poll_interval",
-        "max_retries",
         "only_missing",
     ):
         if node.has_property(key):
@@ -74,29 +128,34 @@ def build_generation_config(node: FastDataNode) -> dict[str, Any]:
     return config
 
 
-def build_node_runner(node: FastDataNode, stop_token: StopToken | None = None) -> Callable[[Callable[[int, int], None]], Any]:
-    node_name = getattr(type(node), "NODE_NAME", node.name())
+def build_node_runner(
+    node: FastDataNode,
+    stop_token: StopToken | None = None,
+    context: dict[int, Any] | None = None,
+) -> Callable[[Callable[[int, int], None]], Any]:
+    context = context if context is not None else {}
+    node_name = node_type_name(node)
 
     if node_name == "Image To PNG":
-        input_dir = require_connected_property(node, "folder_path", "folder_path")
+        input_dir = resolve_folder_input(node, "folder_path", context)
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         return lambda progress: convert_images_to_png(input_dir, output_dir, bool(node.get_property("overwrite")), progress)
 
     if node_name == "Image To JPG":
-        input_dir = require_connected_property(node, "folder_path", "folder_path")
+        input_dir = resolve_folder_input(node, "folder_path", context)
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         quality = int(node.get_property("quality"))
         overwrite = bool(node.get_property("overwrite"))
         return lambda progress: convert_images_to_jpg(input_dir, output_dir, quality, overwrite, progress)
 
     if node_name == "Resize Match":
-        reference_dir = require_connected_property(node, "reference_folder_path", "folder_path")
-        target_dir = require_connected_property(node, "target_folder_path", "folder_path")
+        reference_dir = resolve_folder_input(node, "reference_folder_path", context)
+        target_dir = resolve_folder_input(node, "target_folder_path", context)
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         return lambda progress: resize_folder_to_reference(reference_dir, target_dir, output_dir, bool(node.get_property("overwrite")), progress)
 
     if node_name == "Resize Image":
-        input_dir = require_connected_property(node, "folder_path", "folder_path")
+        input_dir = resolve_folder_input(node, "folder_path", context)
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         return lambda progress: resize_images(
             input_dir,
@@ -110,7 +169,7 @@ def build_node_runner(node: FastDataNode, stop_token: StopToken | None = None) -
         )
 
     if node_name == "Prompt Batch Generate":
-        prompt = require_connected_property(node, "prompt", "prompt_text")
+        prompt = resolve_prompt_input(node, "prompt")
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         return lambda progress: generate_prompt_files(
             prompt,
@@ -121,8 +180,8 @@ def build_node_runner(node: FastDataNode, stop_token: StopToken | None = None) -
         )
 
     if node_name == "Img2Img":
-        input_dir = require_connected_property(node, "folder_path", "folder_path")
-        prompt = require_connected_property(node, "prompt", "prompt_text")
+        input_dir = resolve_folder_input(node, "folder_path", context)
+        prompt = resolve_prompt_input(node, "prompt")
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         token = stop_token or StopToken()
         return lambda progress: asyncio.run(
@@ -138,7 +197,7 @@ def build_node_runner(node: FastDataNode, stop_token: StopToken | None = None) -
         )
 
     if node_name == "Text2Img":
-        prompt = require_connected_property(node, "prompt", "prompt_text")
+        prompt = resolve_prompt_input(node, "prompt")
         output_dir = require_connected_property(node, "output_folder", "folder_path")
         token = stop_token or StopToken()
         return lambda progress: asyncio.run(
@@ -153,3 +212,58 @@ def build_node_runner(node: FastDataNode, stop_token: StopToken | None = None) -
         )
 
     raise NodeExecutionError(f"Node is not executable: {node_name}")
+
+
+def upstream_nodes(node: FastDataNode) -> list[FastDataNode]:
+    sources = []
+    for port in node.inputs().values():
+        for connected_port in port.connected_ports():
+            sources.append(connected_port.node())
+    return sources
+
+
+def build_execution_plan(target_node: FastDataNode) -> list[FastDataNode]:
+    if not is_executable_node(target_node):
+        raise NodeExecutionError(f"Node is not executable: {target_node.name()}")
+
+    plan = []
+    visiting = set()
+    visited = set()
+
+    def visit(node: FastDataNode) -> None:
+        node_key = id(node)
+        if node_key in visiting:
+            raise NodeExecutionError("Cycle detected in workflow.")
+        if node_key in visited:
+            return
+        visiting.add(node_key)
+        for source in upstream_nodes(node):
+            if is_executable_node(source):
+                visit(source)
+        visiting.remove(node_key)
+        visited.add(node_key)
+        if is_executable_node(node):
+            plan.append(node)
+
+    visit(target_node)
+    return plan
+
+
+def execute_node_sequence(
+    nodes: list[FastDataNode],
+    stop_token: StopToken,
+    progress_callback: Callable[[int, int], None] | None = None,
+) -> dict[str, Any]:
+    context: dict[int, Any] = {}
+    results = []
+    total_nodes = len(nodes)
+    for index, node in enumerate(nodes, start=1):
+        if stop_token.is_stopped:
+            raise NodeExecutionError("Task stopped by user.")
+        runner = build_node_runner(node, stop_token, context)
+        result = runner(lambda current, total: progress_callback(index - 1, total_nodes) if progress_callback else None)
+        context[id(node)] = result
+        results.append({"node": node.name(), "result": result})
+        if progress_callback:
+            progress_callback(index, total_nodes)
+    return {"results": results, "last_result": results[-1]["result"] if results else None}

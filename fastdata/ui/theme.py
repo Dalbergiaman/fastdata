@@ -28,9 +28,26 @@ QToolButton:hover {
     background: #2a2e38;
 }
 
+QToolButton:checked {
+    background: #26364b;
+    border-color: #5f7fa8;
+}
+
 QStatusBar {
     background: #101114;
     color: #aeb4c0;
+}
+
+QDockWidget {
+    color: #f2f4f8;
+}
+
+QDockWidget::title {
+    background: #15171c;
+    border: 1px solid #2a2d35;
+    border-bottom: 0;
+    padding: 7px 9px;
+    text-align: left;
 }
 
 QFrame#SidePanel,

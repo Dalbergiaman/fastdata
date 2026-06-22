@@ -14,8 +14,8 @@ class Img2ImgNode(FastDataNode):
         self.create_property("image_size", config["image_size"])
         self.create_property("only_missing", config["only_missing"])
         self.add_input("folder_path")
-        self.add_input("prompt")
         self.add_input("output_folder")
+        self.add_input("prompt")
         self.add_output("generated_images")
 
 

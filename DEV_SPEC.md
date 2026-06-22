@@ -110,7 +110,7 @@ FastData NodeGraph
 │   └── 输出
 ├── 中间 NodeGraphQt 画布
 ├── 右侧属性面板
-└── 底部状态 / 日志区域
+└── 底部日志区域
 ```
 
 审美方向：
@@ -119,6 +119,13 @@ FastData NodeGraph
 - 节点颜色克制，按类别轻微区分即可，不使用高饱和大面积色块。
 - 连线使用细线和柔和颜色，选中态清晰但不过分刺眼。
 - 右侧属性面板保持表单清晰，不堆叠过多边框。
+- 左侧节点库、右侧属性面板和底部日志区使用可折叠面板，用户可以把画布区域最大化。
+- 面板折叠控制放在工具栏最右侧，使用类似 VS Code 布局控制的符号图标，不与左侧工作流操作按钮混在一起。
+- 底部只保留日志区作为运行反馈入口，不再额外显示重复状态栏文本。
+- 路径选择使用自定义文件系统树弹窗，必须能同时显示文件夹和文件，方便用户确认图片、提示词等输入内容；文件夹选择弹窗保持浅色观感，不继承主应用深色样式。
+- Path Input 和 Output Folder 节点本体直接提供路径选择按钮；右侧属性面板的路径字段提供快速打开当前路径按钮。
+- 应用窗口使用简约 flow 风格图标，图标资源放在 `fastdata/assets/`。
+- 未保存的新工作流窗口标题只显示应用名，存在未保存修改时使用 `*` 标记，不显示 `Untitled`。
 - 字体优先使用 `Microsoft YaHei UI`。
 - Qt6/PySide6 使用默认高 DPI 感知；项目不重复调用 Windows DPI API，避免启动时出现 `SetProcessDpiAwarenessContext()` 权限警告。
 
@@ -159,19 +166,17 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 用途：选择一个文件夹路径，可作为图片输入、参考图输入、目标图输入或普通文件输入。
 
+画布节点本体应直接提供文件夹路径输入、选择按钮和紧凑打开按钮，减少用户必须切到右侧属性面板的次数，并避免按钮文字被节点端口挤压截断。
+
 参数：
 
 - `folder_path`
-- `path_role`
-- `include_extensions`
 
 输出：
 
 - `folder_path`
-- `images`
-- `files`
 
-第一版可以先只稳定输出 `folder_path`，由下游节点自己扫描图片；后续再扩展 `images` 和 `files` 的强类型数据。
+第一版只稳定输出 `folder_path`，由下游节点自己扫描图片。`images` 和 `files` 强类型输出暂不暴露，避免当前界面出现未使用端口。
 
 #### Prompt Input 节点
 
@@ -188,6 +193,8 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 #### Output Folder 节点
 
 用途：提供输出目录，并允许在系统文件管理器中打开。
+
+画布节点本体应直接提供文件夹路径输入、选择按钮和紧凑打开按钮。
 
 参数：
 
@@ -229,9 +236,9 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 输入：
 
-- `images` 或 `folder_path`
-- `prompt`
+- `folder_path`
 - `output_folder`
+- `prompt`
 
 参数：
 
@@ -324,7 +331,7 @@ auto
 
 输入：
 
-- `images` 或 `folder_path`
+- `folder_path`
 - `output_folder`
 
 参数：
@@ -343,7 +350,7 @@ auto
 
 输入：
 
-- `images` 或 `folder_path`
+- `folder_path`
 - `output_folder`
 
 参数：
@@ -363,8 +370,8 @@ auto
 
 输入：
 
-- `reference_images` 或 `reference_folder_path`
-- `target_images` 或 `target_folder_path`
+- `reference_folder_path`
+- `target_folder_path`
 - `output_folder`
 
 参数：
@@ -389,7 +396,7 @@ auto
 
 输入：
 
-- `images` 或 `folder_path`
+- `folder_path`
 - `output_folder`
 
 参数：
@@ -424,9 +431,11 @@ fill_crop
 
 对应参考功能：`resize_to_1024.resize_folder_to_1024_rgb_png(...)`，但需要从固定 1024 改造为自定义宽高。
 
-## 默认工作流模板
+## 后续工作流模板
 
-第一版启动时默认显示空画布。后续通过工具栏或模板入口提供几个预设工作流模板，减少用户从零搭建的压力。
+当前工具节点数量较少，第一版启动时默认显示空画布，用户直接从节点库创建节点并手动连线即可。
+
+预设工作流模板暂不进入当前 MVP。等后续节点、参数和流程变多后，再通过工具栏或模板入口提供常用流程，减少用户从零搭建的压力。
 
 ### 图生图工作流
 
@@ -489,6 +498,7 @@ Output Folder -> Prompt Batch Generate
 - 当前不自动执行选中节点的下游节点；用户应选中链路末端想要得到结果的处理节点。
 - 用户可通过工具栏 Delete 或键盘 Delete/Backspace 删除选中节点。
 - 工具栏 New、Open、Save 分别创建空工作流、打开工作流 JSON、保存当前工作流 JSON。
+- 当前工作流通过节点图快照判断是否存在未保存修改；窗口标题显示 `*`；执行 New、Open 或关闭窗口前必须提示保存、丢弃或取消。
 - Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数和默认生成参数。
 - 暂不实现复杂自动调度、缓存失效、并行 DAG 执行。
 - 每个业务节点内部可以使用现有函数的批处理能力。
@@ -559,6 +569,8 @@ fastdata/
 ├── fastdata/
 │   ├── __init__.py
 │   ├── config.py
+│   ├── assets/
+│   │   └── app_icon.svg
 │   ├── core/
 │   │   ├── __init__.py
 │   │   ├── generator.py
@@ -606,11 +618,11 @@ fastdata/
 3. 节点库、画布、属性面板、底部状态区域。
 4. 本地 JSON 配置读取与保存。
 5. Path Input、Prompt Input、Output Folder、Img2Img、Text2Img、Image To PNG、Image To JPG、Resize Match、Resize Image、Prompt Batch Generate 节点。
-6. 预设工作流模板。
-7. 后台执行，避免 UI 卡死。
-8. 图生图和文生图支持停止。
-9. 工作流保存和打开。
-10. PyInstaller onedir 打包。
+6. 后台执行，避免 UI 卡死。
+7. 图生图和文生图支持停止。
+8. 工作流保存和打开。
+
+MVP 当前阶段不包含 PyInstaller 打包。打包工作拆分为最终发布阶段，等用户明确要求开始打包时再执行。
 
 ### MVP 暂不做
 
@@ -624,6 +636,7 @@ fastdata/
 8. 节点执行缓存。
 9. 多语言切换。
 10. 数据库。
+11. 预设工作流模板。
 
 ## 开发计划
 
@@ -655,13 +668,15 @@ fastdata/
 - 左侧节点库。
 - 中间 NodeGraphQt 画布。
 - 右侧属性面板。
-- 底部状态/日志区域。
+- 底部日志区域。
 - 深色画布背景、节点颜色、连线样式。
 
 验证标准：
 
 - 界面默认为深色。
 - 节点、连线、属性面板清晰可读。
+- 节点库、属性面板和日志区可折叠，折叠后画布空间增加。
+- 折叠控制位于工具栏最右侧，并使用图标按钮表示左栏、右栏和底部日志区。
 - 高 DPI 下界面不明显模糊，且启动时不出现重复设置 DPI awareness 的权限警告。
 
 ### Phase 3：配置与路径系统
@@ -755,39 +770,37 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - Prompt Batch Generate 可真实输出 txt。
 - 图生图和文生图节点不阻塞 UI。
 
-### Phase 7：工作流保存与模板
+### Phase 7：工作流保存
 
-目标：让用户能复用节点流程。
+目标：让用户能保存和复用自己手动搭建的节点流程。
 
 实现内容：
 
 - 保存当前工作流到 `workflows/*.json`。
 - 打开已有工作流。
-- 提供默认模板：图生图、文生图、PNG 转换、JPG 转换、尺寸匹配、尺寸缩放、Prompt 批量生成。
-- 启动时可选择模板或打开上次工作流。
+- 启动时可打开上次工作流。
 
 验证标准：
 
 - 保存后重启能恢复节点、连线、参数。
-- 模板能一键加载。
-- 加载后可直接编辑和运行。
+- 恢复后的工作流可直接编辑和运行。
 
-### Phase 8：打包整理
+### Phase 8：交付整理
 
-目标：形成可分发的 Windows 桌面工具。
+目标：在不执行正式打包的前提下，完成开发版交付前整理与验收。
 
 实现内容：
 
-- 检查 PyInstaller onedir 打包。
-- 确认 NodeGraphQt、Qt 绑定、Pillow、aiohttp 能被正确收集。
 - 确认 `config/`、`data/`、`workflows/` 目录创建逻辑。
 - 确认中文路径、中文 Prompt 正常。
+- 更新 README 和使用说明。
 
 验证标准：
 
 - `uv run python -m compileall app.py fastdata` 通过。
 - `uv run python app.py` 能启动并运行本地功能。
-- PyInstaller onedir 产物能启动。
+
+正式 Windows 打包不属于当前阶段，拆分到最终发布阶段，等用户明确要求打包时再做。
 
 ## 代码编写计划
 
@@ -799,7 +812,8 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 [x] A：项目基础与主窗口骨架
 [x] B：核心功能与配置层
 [x] C：节点系统与执行流程
-[ ] D：工作流、打包与验收
+[ ] D：工作流与验收
+[ ] E：最终发布打包
 ```
 
 ### [x] A：项目基础与主窗口骨架
@@ -860,12 +874,13 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 左侧节点库区域。
 - 中间 NodeGraphQt 画布。
 - 右侧属性面板占位。
-- 底部状态/日志区域。
+- 底部日志区域。
 
 验证标准：
 
 - 主窗口各区域布局稳定。
 - 窗口缩放时画布扩展，侧栏和状态栏尺寸保持可用。
+- 左侧节点库、右侧属性面板和底部日志区可折叠。
 
 #### [x] A-5：实现深色主题基础样式
 
@@ -1043,7 +1058,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 
 - 创建 `Img2Img` 节点。
 - 创建 `Text2Img` 节点。
-- 输入端口按 DEV_SPEC 定义接收 `folder_path/images`、`prompt`、`output_folder`。
+- 输入端口按 DEV_SPEC 定义接收 `folder_path`、`prompt`、`output_folder`。
 - 参数优先使用节点属性，缺省值从全局配置读取。
 
 验证标准：
@@ -1113,9 +1128,9 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 成功、失败、停止状态可见。
 - 错误弹窗和日志信息清晰。
 
-### [ ] D：工作流、打包与验收
+### [ ] D：工作流与验收
 
-目标：让用户能保存、复用和分发这个工具。
+目标：让用户能保存、复用并稳定运行这个工具的开发版。
 
 #### [ ] D-1：实现工作流保存与打开
 
@@ -1123,32 +1138,17 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 
 - 保存当前节点、连线、节点参数到 `workflows/*.json`。
 - 打开已有工作流并恢复画布。
+- 通过当前节点图快照追踪工作流是否有未保存修改。
+- New、Open、关闭窗口前，如果存在未保存修改，应提示用户保存、丢弃或取消。
 - 启动时可打开上次工作流。
 
 验证标准：
 
 - 保存后重启能恢复节点布局、连线和参数。
 - 打开损坏工作流时给出明确错误。
+- 未保存工作流不会被 New、Open 或关闭窗口静默丢弃。
 
-#### [ ] D-2：实现默认模板
-
-实现内容：
-
-- 图生图模板。
-- 文生图模板。
-- PNG 转换模板。
-- JPG 转换模板。
-- 尺寸匹配模板。
-- 尺寸缩放模板。
-- Prompt 批量生成模板。
-
-验证标准：
-
-- 模板可一键加载。
-- 模板节点连接符合端口模型。
-- 加载后可直接编辑参数并运行。
-
-#### [ ] D-3：完善状态、日志和错误处理
+#### [ ] D-2：完善状态、日志和错误处理
 
 实现内容：
 
@@ -1162,7 +1162,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 常见错误路径都有明确提示。
 - 日志能辅助用户定位输入缺失、输出路径错误、API 配置错误。
 
-#### [ ] D-4：全功能本地验收
+#### [ ] D-3：全功能本地验收
 
 实现内容：
 
@@ -1181,22 +1181,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 本地功能均能真实输出文件。
 - 网络功能缺少 API Key 时提示明确。
 
-#### [ ] D-5：PyInstaller 打包
-
-实现内容：
-
-- 添加或整理 PyInstaller 打包命令。
-- 使用 `onedir` 模式。
-- 确认 NodeGraphQt、PySide6、Pillow、aiohttp 资源被收集。
-- 确认 `config/`、`data/`、`workflows/` 目录在打包产物旁可创建。
-
-验证标准：
-
-- 打包成功。
-- `dist/FastData/FastData.exe` 可启动。
-- 打包产物可运行本地图片处理功能。
-
-#### [ ] D-6：交付前清理
+#### [ ] D-4：交付前文档与清理
 
 实现内容：
 
@@ -1211,12 +1196,33 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 - 文档能指导用户启动和运行。
 - DEV_SPEC 不与实际代码冲突。
 
+### [ ] E：最终发布打包
+
+目标：在用户明确要求打包时，再形成可分发的 Windows 桌面工具。
+
+触发条件：
+
+- 用户明确要求开始打包或发布。
+
+实现内容：
+
+- 添加或整理 PyInstaller 打包命令。
+- 使用 `onedir` 模式。
+- 确认 NodeGraphQt、PySide6、Pillow、aiohttp 资源被正确收集。
+- 确认 `config/`、`data/`、`workflows/` 目录在打包产物旁可创建。
+
+验证标准：
+
+- 打包成功。
+- `dist/FastData/FastData.exe` 可启动。
+- 打包产物可运行本地图片处理功能。
+
 ## 成功标准
 
 第一版成功标准：
 
 - 用户可以打开一个深色主题的 NodeGraphQt 桌面应用。
-- 用户可以用节点搭出或加载默认工作流。
+- 用户可以手动创建节点、连线并保存自己的工作流。
 - 参考项目中的核心功能可通过节点运行，并新增文生图、JPG 转换、自定义尺寸缩放节点。
 - 旧 Tkinter UI 不再作为产品界面存在。
 - 配置、路径、Prompt、工作流可保存。
@@ -1237,7 +1243,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 用属性面板承载节点参数
 用后台 worker 执行耗时任务
 用 JSON 保存配置和工作流
-用 PyInstaller onedir 分发
+最终按需用 PyInstaller onedir 分发
 ```
 
 这条路线比继续堆叠传统表单页更符合节点式图片工作流的审美和使用方式，同时能复用已经验证过的 Python 业务逻辑，并让输出路径在画布连线中保持可见。

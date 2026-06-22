@@ -30,10 +30,17 @@ class FastDataNode(BaseNode):
 
     def __init__(self) -> None:
         super().__init__()
+        self.on_property_changed = None
         self._base_color = NODE_COLORS.get(self.CATEGORY, NODE_COLORS["image"])
         self.set_color(*self._base_color)
         self.create_property("status", NodeStatus.IDLE.value)
         self.create_property("last_message", "")
+
+    def set_property(self, name: str, value: Any, push_undo: bool = True) -> None:
+        old_value = self.get_property(name)
+        super().set_property(name, value, push_undo)
+        if old_value != value and name not in {"status", "last_message"} and self.on_property_changed:
+            self.on_property_changed()
 
     def set_status(self, status: NodeStatus | str, message: str = "") -> None:
         status_value = status.value if isinstance(status, NodeStatus) else status

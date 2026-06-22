@@ -1,9 +1,11 @@
 import argparse
+import json
 import sys
+from pathlib import Path
 
 from PySide6 import QtCore, QtGui, QtWidgets
 
-from fastdata.ui.graph import GraphWidget
+from fastdata.ui.graph import GraphWidget, NODE_ALIASES
 from fastdata.ui.property_panel import PropertyPanel
 from fastdata.ui.settings_dialog import SettingsDialog
 from fastdata.ui.theme import apply_app_theme
@@ -17,6 +19,7 @@ DEFAULT_SIZE = (1440, 900)
 MINIMUM_SIZE = (960, 640)
 DEFAULT_FONT_FAMILY = "Microsoft YaHei UI"
 DEFAULT_FONT_SIZE = 10
+APP_ICON_PATH = Path(__file__).resolve().parent.parent / "assets" / "app_icon.svg"
 
 
 def enable_dpi_awareness() -> None:
@@ -33,6 +36,7 @@ class MainWindow(QtWidgets.QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(WINDOW_TITLE)
+        self.setWindowIcon(QtGui.QIcon(str(APP_ICON_PATH)))
         self.resize(*DEFAULT_SIZE)
         self.setMinimumSize(*MINIMUM_SIZE)
 
@@ -40,16 +44,30 @@ class MainWindow(QtWidgets.QMainWindow):
         self.node_library = self._build_node_library()
         self.property_panel = PropertyPanel(self)
         self.log_panel = self._build_log_panel()
+        self.node_dock: QtWidgets.QDockWidget | None = None
+        self.property_dock: QtWidgets.QDockWidget | None = None
+        self.log_dock: QtWidgets.QDockWidget | None = None
         self._worker_thread: QtCore.QThread | None = None
         self._worker: NodeWorker | None = None
         self._stop_token: StopToken | None = None
         self.run_action: QtGui.QAction | None = None
         self.stop_action: QtGui.QAction | None = None
+        self.node_panel_action: QtGui.QAction | None = None
+        self.property_panel_action: QtGui.QAction | None = None
+        self.log_panel_action: QtGui.QAction | None = None
         self.current_workflow_path: str | None = None
+        self.is_workflow_dirty = False
+        self._is_loading_workflow = False
+        self._saved_workflow_snapshot = ""
 
         self._build_toolbar()
         self._build_layout()
+        self.graph_widget.graph.node_created.connect(self._on_node_created)
         self.graph_widget.graph.node_selection_changed.connect(self._on_node_selection_changed)
+        self.graph_widget.graph.session_changed.connect(self._on_graph_session_changed)
+        self.property_panel.propertyChanged.connect(self.mark_workflow_dirty)
+        self._save_workflow_snapshot()
+        self._update_window_title()
         self.set_status("Ready")
 
     def _build_toolbar(self) -> None:
@@ -80,6 +98,64 @@ class MainWindow(QtWidgets.QMainWindow):
                 action.triggered.connect(self.open_settings)
             if label in {"Save", "Delete", "Stop"}:
                 toolbar.addSeparator()
+
+        spacer = QtWidgets.QWidget(self)
+        spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
+        toolbar.addWidget(spacer)
+
+        for label, tooltip, icon, callback in (
+            (
+                "Nodes",
+                "Toggle Nodes panel",
+                self._build_panel_icon("left"),
+                lambda checked: self._set_dock_visible(self.node_dock, checked),
+            ),
+            (
+                "Properties",
+                "Toggle Properties panel",
+                self._build_panel_icon("right"),
+                lambda checked: self._set_dock_visible(self.property_dock, checked),
+            ),
+            (
+                "Log",
+                "Toggle Log panel",
+                self._build_panel_icon("bottom"),
+                lambda checked: self._set_dock_visible(self.log_dock, checked),
+            ),
+        ):
+            action = QtGui.QAction(icon, "", self)
+            action.setToolTip(tooltip)
+            action.setCheckable(True)
+            action.setChecked(True)
+            action.triggered.connect(callback)
+            toolbar.addAction(action)
+            if label == "Nodes":
+                self.node_panel_action = action
+            elif label == "Properties":
+                self.property_panel_action = action
+            elif label == "Log":
+                self.log_panel_action = action
+
+    def _build_panel_icon(self, side: str) -> QtGui.QIcon:
+        pixmap = QtGui.QPixmap(18, 18)
+        pixmap.fill(QtCore.Qt.transparent)
+
+        painter = QtGui.QPainter(pixmap)
+        painter.setRenderHint(QtGui.QPainter.Antialiasing)
+        painter.setPen(QtGui.QPen(QtGui.QColor("#8e98aa"), 1))
+        painter.setBrush(QtGui.QBrush(QtGui.QColor("#20232b")))
+        painter.drawRoundedRect(2, 3, 14, 12, 2, 2)
+
+        painter.setPen(QtCore.Qt.NoPen)
+        painter.setBrush(QtGui.QBrush(QtGui.QColor("#7aa2d6")))
+        if side == "left":
+            painter.drawRect(3, 4, 4, 10)
+        elif side == "right":
+            painter.drawRect(11, 4, 4, 10)
+        elif side == "bottom":
+            painter.drawRect(3, 10, 12, 4)
+        painter.end()
+        return QtGui.QIcon(pixmap)
 
     def _build_node_library(self) -> QtWidgets.QWidget:
         panel = QtWidgets.QFrame(self)
@@ -114,30 +190,58 @@ class MainWindow(QtWidgets.QMainWindow):
         log = QtWidgets.QTextEdit(self)
         log.setObjectName("LogPanel")
         log.setReadOnly(True)
-        log.setFixedHeight(96)
+        log.setMinimumHeight(80)
         return log
 
     def _build_layout(self) -> None:
-        central = QtWidgets.QWidget(self)
-        root_layout = QtWidgets.QVBoxLayout(central)
-        root_layout.setContentsMargins(10, 10, 10, 10)
-        root_layout.setSpacing(10)
+        self.setCentralWidget(self.graph_widget)
 
-        content_layout = QtWidgets.QHBoxLayout()
-        content_layout.setSpacing(10)
+        self.node_dock = self._build_dock("Nodes", self.node_library, QtCore.Qt.LeftDockWidgetArea)
+        self.property_dock = self._build_dock("Properties", self.property_panel, QtCore.Qt.RightDockWidgetArea)
+        self.log_dock = self._build_dock("Log", self.log_panel, QtCore.Qt.BottomDockWidgetArea)
+        self.node_dock.setMinimumWidth(220)
+        self.property_dock.setMinimumWidth(280)
+        self.log_dock.setMinimumHeight(110)
+        self.node_dock.visibilityChanged.connect(self._sync_node_panel_action)
+        self.property_dock.visibilityChanged.connect(self._sync_property_panel_action)
+        self.log_dock.visibilityChanged.connect(self._sync_log_panel_action)
+        self.resizeDocks([self.node_dock, self.property_dock], [220, 280], QtCore.Qt.Horizontal)
+        self.resizeDocks([self.log_dock], [130], QtCore.Qt.Vertical)
 
-        self.node_library.setFixedWidth(220)
-        self.property_panel.setFixedWidth(280)
-        content_layout.addWidget(self.node_library)
-        content_layout.addWidget(self.graph_widget, 1)
-        content_layout.addWidget(self.property_panel)
+    def _build_dock(
+        self,
+        title: str,
+        widget: QtWidgets.QWidget,
+        area: QtCore.Qt.DockWidgetArea,
+    ) -> QtWidgets.QDockWidget:
+        dock = QtWidgets.QDockWidget(title, self)
+        dock.setObjectName("PanelDock")
+        dock.setWidget(widget)
+        dock.setFeatures(
+            QtWidgets.QDockWidget.DockWidgetClosable
+            | QtWidgets.QDockWidget.DockWidgetMovable
+            | QtWidgets.QDockWidget.DockWidgetFloatable
+        )
+        self.addDockWidget(area, dock)
+        return dock
 
-        root_layout.addLayout(content_layout, 1)
-        root_layout.addWidget(self.log_panel)
-        self.setCentralWidget(central)
+    def _set_dock_visible(self, dock: QtWidgets.QDockWidget | None, visible: bool) -> None:
+        if dock is not None:
+            dock.setVisible(visible)
+
+    def _sync_node_panel_action(self, visible: bool) -> None:
+        if self.node_panel_action:
+            self.node_panel_action.setChecked(visible)
+
+    def _sync_property_panel_action(self, visible: bool) -> None:
+        if self.property_panel_action:
+            self.property_panel_action.setChecked(visible)
+
+    def _sync_log_panel_action(self, visible: bool) -> None:
+        if self.log_panel_action:
+            self.log_panel_action.setChecked(visible)
 
     def set_status(self, message: str) -> None:
-        self.statusBar().showMessage(message)
         self.log_panel.append(message)
 
     def add_node_to_graph(self, node_name: str) -> None:
@@ -146,31 +250,44 @@ class MainWindow(QtWidgets.QMainWindow):
         except ValueError as error:
             self.set_status(str(error))
             return
-        self.set_status(f"Created node: {node_name}")
 
     def new_workflow(self) -> None:
+        if not self._confirm_discard_unsaved_changes():
+            return
+        self._is_loading_workflow = True
         self.graph_widget.graph.clear_session()
+        self._is_loading_workflow = False
         self.current_workflow_path = None
         self.property_panel.set_node(None)
+        self._save_workflow_snapshot()
         self.set_status("New workflow")
 
     def open_workflow(self) -> None:
+        if not self._confirm_discard_unsaved_changes():
+            return
         path, _ = QtWidgets.QFileDialog.getOpenFileName(self, "Open Workflow", "workflows", "Workflow (*.json)")
         if not path:
             return
+        self._is_loading_workflow = True
         self.graph_widget.graph.load_session(path)
+        self._bind_all_node_dirty_callbacks()
+        self._is_loading_workflow = False
         self.current_workflow_path = path
+        self.property_panel.set_node(None)
+        self._save_workflow_snapshot()
         self.set_status(f"Opened workflow: {path}")
 
-    def save_workflow(self) -> None:
+    def save_workflow(self) -> bool:
         path = self.current_workflow_path
         if not path:
             path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "Save Workflow", "workflows/workflow.json", "Workflow (*.json)")
         if not path:
-            return
+            return False
         self.graph_widget.graph.save_session(path)
         self.current_workflow_path = path
+        self._save_workflow_snapshot()
         self.set_status(f"Saved workflow: {path}")
+        return True
 
     def open_settings(self) -> None:
         dialog = SettingsDialog(self)
@@ -185,6 +302,74 @@ class MainWindow(QtWidgets.QMainWindow):
         self.graph_widget.graph.delete_nodes(selected)
         self.property_panel.set_node(None)
         self.set_status(f"Deleted {len(selected)} node(s)")
+
+    def mark_workflow_dirty(self) -> None:
+        if self._is_loading_workflow:
+            return
+        self._refresh_workflow_dirty_state()
+
+    def _bind_node_dirty_callback(self, node) -> None:
+        if hasattr(node, "on_property_changed"):
+            node.on_property_changed = self.mark_workflow_dirty
+
+    def _bind_all_node_dirty_callbacks(self) -> None:
+        for node in self.graph_widget.graph.all_nodes():
+            self._bind_node_dirty_callback(node)
+
+    def _on_node_created(self, node) -> None:
+        self._bind_node_dirty_callback(node)
+        if not self._is_loading_workflow:
+            self.set_status(f"Created node: {node.name()}")
+            self.mark_workflow_dirty()
+
+    def _on_graph_session_changed(self, _path: str = "") -> None:
+        self.mark_workflow_dirty()
+
+    def _serialize_workflow_snapshot(self) -> str:
+        return json.dumps(self.graph_widget.graph.serialize_session(), sort_keys=True, ensure_ascii=False)
+
+    def _save_workflow_snapshot(self) -> None:
+        self._saved_workflow_snapshot = self._serialize_workflow_snapshot()
+        self._set_workflow_dirty(False)
+
+    def _refresh_workflow_dirty_state(self) -> None:
+        self._set_workflow_dirty(self._serialize_workflow_snapshot() != self._saved_workflow_snapshot)
+
+    def _set_workflow_dirty(self, dirty: bool) -> None:
+        if self.is_workflow_dirty == dirty:
+            return
+        self.is_workflow_dirty = dirty
+        self._update_window_title()
+
+    def _update_window_title(self) -> None:
+        marker = "*" if self.is_workflow_dirty else ""
+        if self.current_workflow_path:
+            self.setWindowTitle(f"{marker}{WINDOW_TITLE} - {self.current_workflow_path}")
+            return
+        self.setWindowTitle(f"{marker}{WINDOW_TITLE}")
+
+    def _confirm_discard_unsaved_changes(self) -> bool:
+        if not self.is_workflow_dirty:
+            return True
+
+        response = QtWidgets.QMessageBox.warning(
+            self,
+            "Unsaved Workflow",
+            "The current workflow has unsaved changes.",
+            QtWidgets.QMessageBox.Save | QtWidgets.QMessageBox.Discard | QtWidgets.QMessageBox.Cancel,
+            QtWidgets.QMessageBox.Save,
+        )
+        if response == QtWidgets.QMessageBox.Save:
+            return self.save_workflow()
+        if response == QtWidgets.QMessageBox.Discard:
+            return True
+        return False
+
+    def closeEvent(self, event: QtGui.QCloseEvent) -> None:
+        if self._confirm_discard_unsaved_changes():
+            event.accept()
+            return
+        event.ignore()
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
@@ -276,8 +461,37 @@ class NodeLibraryItem(QtWidgets.QLabel):
     def __init__(self, node_name: str, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(node_name, parent)
         self.node_name = node_name
+        self._drag_start_pos = QtCore.QPoint()
         self.setObjectName("NodeLibraryItem")
         self.setCursor(QtCore.Qt.PointingHandCursor)
+
+    def mousePressEvent(self, event: QtGui.QMouseEvent) -> None:
+        if event.button() == QtCore.Qt.LeftButton:
+            self._drag_start_pos = event.pos()
+        super().mousePressEvent(event)
+
+    def mouseMoveEvent(self, event: QtGui.QMouseEvent) -> None:
+        if not event.buttons() & QtCore.Qt.LeftButton:
+            super().mouseMoveEvent(event)
+            return
+
+        distance = (event.pos() - self._drag_start_pos).manhattanLength()
+        if distance < QtWidgets.QApplication.startDragDistance():
+            super().mouseMoveEvent(event)
+            return
+
+        alias = NODE_ALIASES.get(self.node_name)
+        if alias is None:
+            return
+
+        mime_data = QtCore.QMimeData()
+        mime_data.setData("nodegraphqt/nodes", f"nodegraphqt::node:{alias}".encode("utf-8"))
+
+        drag = QtGui.QDrag(self)
+        drag.setMimeData(mime_data)
+        drag.setPixmap(self.grab())
+        drag.setHotSpot(event.pos())
+        drag.exec(QtCore.Qt.CopyAction)
 
     def mouseDoubleClickEvent(self, event: QtGui.QMouseEvent) -> None:
         if event.button() == QtCore.Qt.LeftButton:

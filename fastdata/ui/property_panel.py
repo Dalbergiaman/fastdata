@@ -3,6 +3,7 @@ from typing import Any
 from PySide6 import QtCore, QtWidgets
 
 from fastdata.nodes.base import FastDataNode
+from fastdata.ui.path_utils import choose_folder, open_path
 
 
 MODEL_CHOICES = [
@@ -39,8 +40,6 @@ ASPECT_RATIO_CHOICES = [
 NODE_PARAMETER_SCHEMAS = {
     "Path Input": [
         {"key": "folder_path", "label": "Folder Path", "type": "path"},
-        {"key": "path_role", "label": "Path Role", "type": "choice", "choices": ["images", "reference", "target", "files"]},
-        {"key": "include_extensions", "label": "Extensions", "type": "text"},
     ],
     "Prompt Input": [
         {"key": "prompt_text", "label": "Prompt", "type": "multiline"},
@@ -85,6 +84,8 @@ NODE_PARAMETER_SCHEMAS = {
 
 
 class PropertyPanel(QtWidgets.QFrame):
+    propertyChanged = QtCore.Signal()
+
     def __init__(self, parent: QtWidgets.QWidget | None = None) -> None:
         super().__init__(parent)
         self.setObjectName("SidePanel")
@@ -221,13 +222,16 @@ class PropertyPanel(QtWidgets.QFrame):
         editor.editingFinished.connect(lambda: self._set_node_property(key, editor.text()))
         button = QtWidgets.QPushButton("Browse", container)
         button.clicked.connect(lambda: self._choose_folder(key, editor))
+        open_button = QtWidgets.QPushButton("Open", container)
+        open_button.clicked.connect(lambda: open_path(self, editor.text()))
 
         layout.addWidget(editor, 1)
         layout.addWidget(button)
+        layout.addWidget(open_button)
         return container
 
     def _choose_folder(self, key: str, editor: QtWidgets.QLineEdit) -> None:
-        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Folder", editor.text())
+        folder = choose_folder(self, editor.text())
         if not folder:
             return
         editor.setText(folder)
@@ -236,4 +240,7 @@ class PropertyPanel(QtWidgets.QFrame):
     def _set_node_property(self, key: str, value: Any) -> None:
         if self._node is None:
             return
+        old_value = self._node.get_property(key)
         self._node.set_property(key, value)
+        if old_value != value:
+            self.propertyChanged.emit()

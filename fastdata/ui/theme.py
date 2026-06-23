@@ -33,6 +33,27 @@ QToolButton:checked {
     border-color: #5f7fa8;
 }
 
+QFrame#TaskProgress {
+    background: transparent;
+    border: 0;
+}
+
+QLabel#TaskProgressText {
+    color: #9faabc;
+    font-size: 11px;
+}
+
+QProgressBar#TaskProgressBar {
+    background: #242832;
+    border: 0;
+    border-radius: 2px;
+}
+
+QProgressBar#TaskProgressBar::chunk {
+    background: #7aa2d6;
+    border-radius: 2px;
+}
+
 QStatusBar {
     background: #101114;
     color: #aeb4c0;

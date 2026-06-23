@@ -30,11 +30,11 @@ EXECUTABLE_NODE_NAMES = {
 
 
 class NodeWorker(QtCore.QObject):
-    progress = QtCore.Signal(int, int)
+    progress = QtCore.Signal(str, int, int)
     finished = QtCore.Signal(object)
     failed = QtCore.Signal(str)
 
-    def __init__(self, node: FastDataNode, runner: Callable[[Callable[[int, int], None]], Any]) -> None:
+    def __init__(self, node: FastDataNode, runner: Callable[[Callable[[str, int, int], None]], Any]) -> None:
         super().__init__()
         self.node = node
         self.runner = runner
@@ -42,7 +42,7 @@ class NodeWorker(QtCore.QObject):
     @QtCore.Slot()
     def run(self) -> None:
         try:
-            result = self.runner(lambda current, total: self.progress.emit(current, total))
+            result = self.runner(lambda label, current, total: self.progress.emit(label, current, total))
             self.finished.emit(result)
         except Exception as error:
             self.failed.emit(str(error))
@@ -252,7 +252,7 @@ def build_execution_plan(target_node: FastDataNode) -> list[FastDataNode]:
 def execute_node_sequence(
     nodes: list[FastDataNode],
     stop_token: StopToken,
-    progress_callback: Callable[[int, int], None] | None = None,
+    progress_callback: Callable[[str, int, int], None] | None = None,
 ) -> dict[str, Any]:
     context: dict[int, Any] = {}
     results = []
@@ -260,10 +260,17 @@ def execute_node_sequence(
     for index, node in enumerate(nodes, start=1):
         if stop_token.is_stopped:
             raise NodeExecutionError("Task stopped by user.")
+        node_label = node.name()
+        if progress_callback:
+            progress_callback(node_label, 0, 1)
         runner = build_node_runner(node, stop_token, context)
-        result = runner(lambda current, total: progress_callback(index - 1, total_nodes) if progress_callback else None)
+        result = runner(
+            lambda current, total: progress_callback(node_label, current, total)
+            if progress_callback
+            else None
+        )
         context[id(node)] = result
         results.append({"node": node.name(), "result": result})
         if progress_callback:
-            progress_callback(index, total_nodes)
+            progress_callback("Workflow", index, total_nodes)
     return {"results": results, "last_result": results[-1]["result"] if results else None}

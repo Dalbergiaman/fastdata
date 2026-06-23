@@ -55,6 +55,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self.node_panel_action: QtGui.QAction | None = None
         self.property_panel_action: QtGui.QAction | None = None
         self.log_panel_action: QtGui.QAction | None = None
+        self.task_progress_label: QtWidgets.QLabel | None = None
+        self.task_progress_bar: QtWidgets.QProgressBar | None = None
         self.current_workflow_path: str | None = None
         self.is_workflow_dirty = False
         self._is_loading_workflow = False
@@ -102,6 +104,7 @@ class MainWindow(QtWidgets.QMainWindow):
         spacer = QtWidgets.QWidget(self)
         spacer.setSizePolicy(QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Preferred)
         toolbar.addWidget(spacer)
+        toolbar.addWidget(self._build_task_progress_widget())
 
         for label, tooltip, icon, callback in (
             (
@@ -156,6 +159,29 @@ class MainWindow(QtWidgets.QMainWindow):
             painter.drawRect(3, 10, 12, 4)
         painter.end()
         return QtGui.QIcon(pixmap)
+
+    def _build_task_progress_widget(self) -> QtWidgets.QWidget:
+        container = QtWidgets.QFrame(self)
+        container.setObjectName("TaskProgress")
+        container.setFixedWidth(240)
+        layout = QtWidgets.QVBoxLayout(container)
+        layout.setContentsMargins(10, 2, 10, 2)
+        layout.setSpacing(4)
+
+        self.task_progress_label = QtWidgets.QLabel("Idle", container)
+        self.task_progress_label.setObjectName("TaskProgressText")
+        self.task_progress_label.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignVCenter)
+
+        self.task_progress_bar = QtWidgets.QProgressBar(container)
+        self.task_progress_bar.setObjectName("TaskProgressBar")
+        self.task_progress_bar.setRange(0, 100)
+        self.task_progress_bar.setValue(0)
+        self.task_progress_bar.setTextVisible(False)
+        self.task_progress_bar.setFixedHeight(4)
+
+        layout.addWidget(self.task_progress_label)
+        layout.addWidget(self.task_progress_bar)
+        return container
 
     def _build_node_library(self) -> QtWidgets.QWidget:
         panel = QtWidgets.QFrame(self)
@@ -243,6 +269,23 @@ class MainWindow(QtWidgets.QMainWindow):
 
     def set_status(self, message: str) -> None:
         self.log_panel.append(message)
+
+    def set_task_progress(self, label: str, current: int = 0, total: int = 0) -> None:
+        if self.task_progress_label:
+            self.task_progress_label.setText(label)
+        if not self.task_progress_bar:
+            return
+        if total <= 0:
+            self.task_progress_bar.setValue(0)
+            return
+        value = max(0, min(100, int((current / total) * 100)))
+        self.task_progress_bar.setValue(value)
+
+    def _on_workflow_progress(self, label: str, current: int, total: int) -> None:
+        if label == "Workflow":
+            self.set_task_progress(f"Running Workflow {current}/{total}", current, total)
+            return
+        self.set_task_progress(f"Running {label} {current}/{total}", current, total)
 
     def add_node_to_graph(self, node_name: str) -> None:
         try:
@@ -408,11 +451,12 @@ class MainWindow(QtWidgets.QMainWindow):
         for plan_node in plan:
             plan_node.set_status(NodeStatus.RUNNING, "Queued")
         self.set_status(f"Running to selected: {' -> '.join(plan_node.name() for plan_node in plan)}")
+        self.set_task_progress(f"Running 0/{len(plan)}", 0, len(plan))
         self._worker_thread = QtCore.QThread(self)
         self._worker = NodeWorker(node, runner)
         self._worker.moveToThread(self._worker_thread)
         self._worker_thread.started.connect(self._worker.run)
-        self._worker.progress.connect(lambda current, total: self.set_status(f"Workflow: {current}/{total} node(s)"))
+        self._worker.progress.connect(self._on_workflow_progress)
         self._worker.finished.connect(lambda result: self._on_node_finished(plan, result))
         self._worker.failed.connect(lambda message: self._on_node_failed(node, message))
         self._worker.finished.connect(self._cleanup_worker)
@@ -426,17 +470,33 @@ class MainWindow(QtWidgets.QMainWindow):
     def stop_current_task(self) -> None:
         if self._stop_token:
             self._stop_token.stop()
+            self.set_task_progress("Stopping...")
             self.set_status("Stop requested.")
 
     def _on_node_finished(self, plan, result) -> None:
         for node in plan:
             node.set_status(NodeStatus.SUCCESS, "Done")
         count = len(result.get("results", [])) if isinstance(result, dict) else 1
-        self.set_status(f"Workflow finished: {count} node(s)")
+        output_count = self._count_result_items(result)
+        self.set_task_progress(f"Done {output_count} item(s)", 1, 1)
+        message = f"Workflow finished: {count} node(s), {output_count} item(s)"
+        self.set_status(message)
+        QtWidgets.QMessageBox.information(self, "Task Complete", message)
 
     def _on_node_failed(self, node, message: str) -> None:
         node.set_status(NodeStatus.ERROR, message)
+        self.set_task_progress("Failed", 1, 1)
         self.set_status(f"{node.name()} failed: {message}")
+
+    def _count_result_items(self, result) -> int:
+        if not isinstance(result, dict):
+            return 1
+        items = result.get("results", [])
+        total = 0
+        for item in items:
+            node_result = item.get("result") if isinstance(item, dict) else None
+            total += len(node_result) if isinstance(node_result, list) else 1
+        return total
 
     def _cleanup_worker(self) -> None:
         if self._worker_thread:

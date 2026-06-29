@@ -481,7 +481,6 @@ class MainWindow(QtWidgets.QMainWindow):
         self.set_task_progress(f"Done {output_count} item(s)", 1, 1)
         message = f"Workflow finished: {count} node(s), {output_count} item(s)"
         self.set_status(message)
-        QtWidgets.QMessageBox.information(self, "Task Complete", message)
 
     def _on_node_failed(self, node, message: str) -> None:
         node.set_status(NodeStatus.ERROR, message)

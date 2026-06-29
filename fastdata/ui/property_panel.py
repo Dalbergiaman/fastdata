@@ -1,9 +1,10 @@
 from typing import Any
 
-from PySide6 import QtCore, QtWidgets
+from pathlib import Path
+
+from PySide6 import QtCore, QtGui, QtWidgets
 
 from fastdata.nodes.base import FastDataNode
-from fastdata.ui.path_utils import choose_folder, open_path
 
 
 MODEL_CHOICES = [
@@ -223,7 +224,7 @@ class PropertyPanel(QtWidgets.QFrame):
         button = QtWidgets.QPushButton("Browse", container)
         button.clicked.connect(lambda: self._choose_folder(key, editor))
         open_button = QtWidgets.QPushButton("Open", container)
-        open_button.clicked.connect(lambda: open_path(self, editor.text()))
+        open_button.clicked.connect(lambda: self._open_folder(editor.text()))
 
         layout.addWidget(editor, 1)
         layout.addWidget(button)
@@ -231,11 +232,21 @@ class PropertyPanel(QtWidgets.QFrame):
         return container
 
     def _choose_folder(self, key: str, editor: QtWidgets.QLineEdit) -> None:
-        folder = choose_folder(self, editor.text())
+        folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Folder", editor.text())
         if not folder:
             return
         editor.setText(folder)
         self._set_node_property(key, folder)
+
+    def _open_folder(self, path_text: str) -> None:
+        if not path_text.strip():
+            QtWidgets.QMessageBox.information(self, "Open Folder", "Current path is empty.")
+            return
+        path = Path(path_text).expanduser()
+        if not path.exists():
+            QtWidgets.QMessageBox.warning(self, "Open Folder", f"Path does not exist:\n{path}")
+            return
+        QtGui.QDesktopServices.openUrl(QtCore.QUrl.fromLocalFile(str(path)))
 
     def _set_node_property(self, key: str, value: Any) -> None:
         if self._node is None:

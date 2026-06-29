@@ -1,5 +1,9 @@
-from fastdata.config import get_default_config
 from fastdata.nodes.base import FastDataNode
+
+
+DEFAULT_MODEL = "nano-banana-2"
+DEFAULT_ASPECT_RATIO = "auto"
+DEFAULT_IMAGE_SIZE = "2K"
 
 
 class Img2ImgNode(FastDataNode):
@@ -8,11 +12,10 @@ class Img2ImgNode(FastDataNode):
 
     def __init__(self) -> None:
         super().__init__()
-        config = get_default_config()
-        self.create_property("model", config["model"])
-        self.create_property("aspect_ratio", config["aspect_ratio"])
-        self.create_property("image_size", config["image_size"])
-        self.create_property("only_missing", config["only_missing"])
+        self.create_property("model", DEFAULT_MODEL)
+        self.create_property("aspect_ratio", DEFAULT_ASPECT_RATIO)
+        self.create_property("image_size", DEFAULT_IMAGE_SIZE)
+        self.create_property("only_missing", True)
         self.add_input("folder_path")
         self.add_input("output_folder")
         self.add_input("prompt")
@@ -25,10 +28,9 @@ class Text2ImgNode(FastDataNode):
 
     def __init__(self) -> None:
         super().__init__()
-        config = get_default_config()
-        self.create_property("model", config["model"])
-        self.create_property("aspect_ratio", config["aspect_ratio"])
-        self.create_property("image_size", config["image_size"])
+        self.create_property("model", DEFAULT_MODEL)
+        self.create_property("aspect_ratio", DEFAULT_ASPECT_RATIO)
+        self.create_property("image_size", DEFAULT_IMAGE_SIZE)
         self.create_property("count", 1)
         self.add_input("prompt")
         self.add_input("output_folder")

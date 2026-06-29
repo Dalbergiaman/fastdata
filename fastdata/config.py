@@ -20,13 +20,9 @@ def get_default_config() -> dict[str, Any]:
     return {
         "api_key": "",
         "base_url": "https://grsai.dakka.com.cn",
-        "model": "nano-banana-2",
-        "aspect_ratio": "auto",
-        "image_size": "2K",
         "concurrency": 5,
         "poll_interval": 2,
         "max_retries": 300,
-        "only_missing": True,
         "prompt": "",
         "theme": "dark",
         "paths": {

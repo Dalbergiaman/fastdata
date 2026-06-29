@@ -24,31 +24,6 @@ class SettingsDialog(QtWidgets.QDialog):
         self.base_url = QtWidgets.QLineEdit(str(self.config.get("base_url", "")), self)
         form.addRow("Base URL", self.base_url)
 
-        self.model = QtWidgets.QComboBox(self)
-        self.model.addItems([
-            "nano-banana",
-            "nano-banana-fast",
-            "nano-banana-2",
-            "nano-banana-2-cl",
-            "nano-banana-2-4k-cl",
-            "nano-banana-pro",
-            "nano-banana-pro-cl",
-            "nano-banana-pro-vip",
-            "nano-banana-pro-4k-vip",
-        ])
-        self.model.setCurrentText(str(self.config.get("model", "nano-banana-2")))
-        form.addRow("Default Model", self.model)
-
-        self.aspect_ratio = QtWidgets.QComboBox(self)
-        self.aspect_ratio.addItems(["auto", "1:1", "16:9", "9:16", "4:3", "3:4", "3:2", "2:3", "5:4", "4:5", "21:9", "1:4", "4:1", "1:8", "8:1"])
-        self.aspect_ratio.setCurrentText(str(self.config.get("aspect_ratio", "auto")))
-        form.addRow("Default Aspect", self.aspect_ratio)
-
-        self.image_size = QtWidgets.QComboBox(self)
-        self.image_size.addItems(["1K", "2K", "4K"])
-        self.image_size.setCurrentText(str(self.config.get("image_size", "2K")))
-        form.addRow("Default Size", self.image_size)
-
         self.concurrency = self._spin("concurrency", 1, 64)
         form.addRow("Concurrency", self.concurrency)
 
@@ -71,12 +46,11 @@ class SettingsDialog(QtWidgets.QDialog):
 
     def values(self) -> dict[str, Any]:
         config = dict(self.config)
+        for key in ("model", "aspect_ratio", "image_size", "only_missing"):
+            config.pop(key, None)
         config.update({
             "api_key": self.api_key.text(),
             "base_url": self.base_url.text(),
-            "model": self.model.currentText(),
-            "aspect_ratio": self.aspect_ratio.currentText(),
-            "image_size": self.image_size.currentText(),
             "concurrency": self.concurrency.value(),
             "poll_interval": self.poll_interval.value(),
             "max_retries": self.max_retries.value(),

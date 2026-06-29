@@ -122,8 +122,9 @@ FastData NodeGraph
 - 左侧节点库、右侧属性面板和底部日志区使用可折叠面板，用户可以把画布区域最大化。
 - 面板折叠控制放在工具栏最右侧，使用类似 VS Code 布局控制的符号图标，不与左侧工作流操作按钮混在一起。
 - 底部只保留日志区作为运行反馈入口，不再额外显示重复状态栏文本。
-- 路径选择使用自定义文件系统树弹窗，必须能同时显示文件夹和文件，方便用户确认图片、提示词等输入内容；文件夹选择弹窗保持浅色观感，不继承主应用深色样式。
-- Path Input 和 Output Folder 节点本体直接提供路径选择按钮；右侧属性面板的路径字段提供快速打开当前路径按钮。
+- 顶部工具栏右侧、面板折叠图标之前放置紧凑任务进度组件，显示 `Idle`、`Running 1/3`、`Done`、`Failed` 等短状态，并使用 3-4px 蓝灰色细线进度条；日志区折叠后仍能看到任务状态。
+- 路径选择使用系统原生文件夹选择器，保证稳定可用；右侧属性面板的路径字段提供快速打开当前路径按钮。
+- Path Input 和 Output Folder 节点本体不放置 Browse/Open 按钮；NodeGraphQt 画布内嵌按钮交互不稳定，路径选择以右侧属性面板为准。
 - 应用窗口使用简约 flow 风格图标，图标资源放在 `fastdata/assets/`。
 - 未保存的新工作流窗口标题只显示应用名，存在未保存修改时使用 `*` 标记，不显示 `Untitled`。
 - 字体优先使用 `Microsoft YaHei UI`。
@@ -166,7 +167,7 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 用途：选择一个文件夹路径，可作为图片输入、参考图输入、目标图输入或普通文件输入。
 
-画布节点本体应直接提供文件夹路径输入、选择按钮和紧凑打开按钮，减少用户必须切到右侧属性面板的次数，并避免按钮文字被节点端口挤压截断。
+路径通过右侧属性面板编辑。第一版不在画布节点本体放置路径选择按钮，避免 NodeGraphQt 嵌入按钮事件被画布交互拦截。
 
 参数：
 
@@ -194,7 +195,7 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 用途：提供输出目录，并允许在系统文件管理器中打开。
 
-画布节点本体应直接提供文件夹路径输入、选择按钮和紧凑打开按钮。
+路径通过右侧属性面板编辑，并可从属性面板快速打开当前路径。
 
 参数：
 
@@ -499,7 +500,7 @@ Output Folder -> Prompt Batch Generate
 - 用户可通过工具栏 Delete 或键盘 Delete/Backspace 删除选中节点。
 - 工具栏 New、Open、Save 分别创建空工作流、打开工作流 JSON、保存当前工作流 JSON。
 - 当前工作流通过节点图快照判断是否存在未保存修改；窗口标题显示 `*`；执行 New、Open 或关闭窗口前必须提示保存、丢弃或取消。
-- Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数和默认生成参数。
+- Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数；生成参数由 Img2Img/Text2Img 节点自身控制。
 - 暂不实现复杂自动调度、缓存失效、并行 DAG 执行。
 - 每个业务节点内部可以使用现有函数的批处理能力。
 - 长耗时任务必须放到后台线程或 Qt worker 中执行，不能阻塞 Qt 主线程。
@@ -509,6 +510,7 @@ Output Folder -> Prompt Batch Generate
 状态反馈：
 
 - 节点本体显示运行中、成功、失败三种状态。
+- 顶部工具栏显示紧凑任务进度，独立于底部日志区，避免日志折叠后失去运行状态。
 - 底部日志显示简短运行信息。
 - 错误用对话框提示，同时写入底部日志。
 - API Key 不得明文输出到日志。
@@ -530,9 +532,6 @@ config/config.json
 {
   "api_key": "",
   "base_url": "https://grsai.dakka.com.cn",
-  "model": "nano-banana-2",
-  "aspect_ratio": "auto",
-  "image_size": "2K",
   "concurrency": 5,
   "poll_interval": 2,
   "max_retries": 300,
@@ -687,7 +686,7 @@ MVP 当前阶段不包含 PyInstaller 打包。打包工作拆分为最终发布
 
 - 实现 `fastdata/config.py`。
 - 支持读取、合并默认配置、保存 `config/config.json`。
-- 配置面板可编辑 API Key、base_url、模型、比例、分辨率、并发数、轮询间隔、最大轮询次数。
+- 配置面板可编辑 API Key、base_url、并发数、轮询间隔、最大轮询次数。
 - 路径字段可选择文件夹并保存。
 
 验证标准：
@@ -1010,7 +1009,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 实现内容：
 
 - 在 `fastdata/core/generator.py` 中实现 `generate_text_to_images_async(...)`。
-- 复用 API Key、base_url、model、aspect_ratio、image_size、poll_interval、max_retries。
+- 复用 API Key、base_url、poll_interval、max_retries；model、aspect_ratio、image_size 由 Text2Img 节点参数提供。
 - 支持 `count` 和输出目录。
 
 验证标准：

@@ -48,7 +48,7 @@ NODE_PARAMETER_SCHEMAS = {
     "Output Folder": [
         {"key": "folder_path", "label": "Folder Path", "type": "path"},
     ],
-    "Img2Img": [
+    "img2img-banana": [
         {"key": "model", "label": "Model", "type": "model"},
         {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "aspect_ratio"},
         {"key": "image_size", "label": "Image Size", "type": "choice", "choices": ["1K", "2K", "4K"]},

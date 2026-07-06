@@ -7,7 +7,7 @@ DEFAULT_IMAGE_SIZE = "2K"
 
 
 class Img2ImgNode(FastDataNode):
-    NODE_NAME = "Img2Img"
+    NODE_NAME = "img2img-banana"
     CATEGORY = "generate"
 
     def __init__(self) -> None:

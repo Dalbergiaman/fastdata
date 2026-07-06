@@ -32,7 +32,7 @@ EXECUTABLE_NODE_NAMES = {
     "Resize Match",
     "Resize Image",
     "Prompt Batch Generate",
-    "Img2Img",
+    "img2img-banana",
     "Text2Img",
 }
 
@@ -43,7 +43,7 @@ NODE_INPUTS: dict[str, list[str]] = {
     "Resize Match": ["reference_folder_path", "target_folder_path", "output_folder"],
     "Resize Image": ["folder_path", "output_folder"],
     "Prompt Batch Generate": ["prompt", "output_folder"],
-    "Img2Img": ["folder_path", "output_folder", "prompt"],
+    "img2img-banana": ["folder_path", "output_folder", "prompt"],
     "Text2Img": ["prompt", "output_folder"],
 }
 
@@ -53,7 +53,7 @@ NODE_PARAMS: dict[str, list[str]] = {
     "Resize Match": ["overwrite"],
     "Resize Image": ["target_width", "target_height", "output_format", "resize_mode", "overwrite"],
     "Prompt Batch Generate": ["count", "filename_prefix"],
-    "Img2Img": ["model", "aspect_ratio", "image_size", "only_missing"],
+    "img2img-banana": ["model", "aspect_ratio", "image_size", "only_missing"],
     "Text2Img": ["model", "aspect_ratio", "image_size", "count"],
 }
 
@@ -210,7 +210,7 @@ def build_node_runner(
         prefix = str(snap.params.get("filename_prefix") or "")
         return lambda progress: generate_prompt_files(prompt, count, output_dir, prefix, progress)
 
-    if node_name == "Img2Img":
+    if node_name == "img2img-banana":
         input_dir = resolve_folder_input(snap, "folder_path", context)
         prompt = resolve_prompt_input(snap, "prompt")
         output_dir = resolve_output_folder(snap, "output_folder")

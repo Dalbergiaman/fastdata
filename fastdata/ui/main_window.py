@@ -198,7 +198,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         groups = {
             "Input": ["Path Input", "Prompt Input", "Output Folder"],
-            "Generate": ["Img2Img", "Text2Img"],
+            "Generate": ["img2img-banana", "Text2Img"],
             "Image": ["Image To PNG", "Image To JPG", "Resize Match", "Resize Image"],
             "Prompt": ["Prompt Batch Generate"],
         }

@@ -8,7 +8,7 @@ NODE_ALIASES = {
     "Path Input": "fastdata.path_input",
     "Prompt Input": "fastdata.prompt_input",
     "Output Folder": "fastdata.output_folder",
-    "Img2Img": "fastdata.img2img",
+    "img2img-banana": "fastdata.img2img_banana",
     "Text2Img": "fastdata.text2img",
     "Image To PNG": "fastdata.image_to_png",
     "Image To JPG": "fastdata.image_to_jpg",

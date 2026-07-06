@@ -140,7 +140,7 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 业务节点尺寸策略：
 
-- 节点标题保持短名称，例如 `Img2Img`、`Image To PNG`、`Resize Image`。
+- 节点标题保持短名称，例如 `img2img-banana`、`img2img-gpt`、`Image To PNG`、`Resize Image`。
 - 节点本体只展示端口、少量关键状态和必要的短控件。
 - Prompt Input 节点在画布中直接显示并编辑多行 Prompt，便于像 ComfyUI 一样直观看到提示词内容。
 - 长路径、完整错误信息、复杂参数放在右侧属性面板、设置弹窗或底部日志区，不直接塞进节点本体。
@@ -231,7 +231,7 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 ### 生成类节点
 
-#### Img2Img 节点
+#### img2img-banana 节点
 
 用途：调用 GrsAI nano-banana 接口进行异步图生图。
 
@@ -253,6 +253,28 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 - `generated_images`
 
 对应参考功能：`generator.AsyncImg2Img`
+
+#### img2img-gpt 节点
+
+用途：调用 GrsAI gpt-image-2 接口进行异步图生图。与 img2img-banana 共用同一套异步提交/轮询/下载链路，区别在于请求体：gpt-image-2 不含 `imageSize`，分辨率由 `aspectRatio`（支持比例如 `16:9` 或像素值如 `1024x1024`）控制。
+
+输入：
+
+- `folder_path`
+- `output_folder`
+- `prompt`
+
+参数：
+
+- `model`
+- `aspect_ratio`
+- `only_missing`
+
+输出：
+
+- `generated_images`
+
+对应参考功能：`generator.AsyncImg2Img`（复用，按 model 家族分支构造请求体）
 
 #### Text2Img 节点
 
@@ -294,6 +316,29 @@ nano-banana-pro
 nano-banana-pro-cl
 nano-banana-pro-vip
 nano-banana-pro-4k-vip
+```
+
+gpt-image 系列可选模型（img2img-gpt 节点，默认 `gpt-image-2`）：
+
+```text
+gpt-image-2
+gpt-image-2-vip
+```
+
+gpt-image 的 `aspectRatio` 支持比例（如 `16:9`）或像素值（如 `1024x1024`）；`gpt-image-2-vip` 仅支持 1–4K 像素值，不支持比例。img2img-gpt 节点的 Aspect Ratio 下拉项：
+
+```text
+1024x1024
+1024x1792
+1792x1024
+2048x2048
+1:1
+16:9
+9:16
+4:3
+3:4
+3:2
+2:3
 ```
 
 比例选项：
@@ -441,9 +486,9 @@ fill_crop
 ### 图生图工作流
 
 ```text
-Path Input    -> Img2Img
-Prompt Input  -> Img2Img
-Output Folder -> Img2Img
+Path Input    -> img2img-banana
+Prompt Input  -> img2img-banana
+Output Folder -> img2img-banana
 ```
 
 ### 文生图工作流
@@ -500,7 +545,7 @@ Output Folder -> Prompt Batch Generate
 - 用户可通过工具栏 Delete 或键盘 Delete/Backspace 删除选中节点。
 - 工具栏 New、Open、Save 分别创建空工作流、打开工作流 JSON、保存当前工作流 JSON。
 - 当前工作流通过节点图快照判断是否存在未保存修改；窗口标题显示 `*`；执行 New、Open 或关闭窗口前必须提示保存、丢弃或取消。
-- Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数；生成参数由 Img2Img/Text2Img 节点自身控制。
+- Settings 打开全局配置弹窗，用于配置 API Key、base_url、并发数、轮询间隔、最大轮询次数；生成参数由 img2img-banana/img2img-gpt/Text2Img 节点自身控制。
 - 暂不实现复杂自动调度、缓存失效、并行 DAG 执行。
 - 每个业务节点内部可以使用现有函数的批处理能力。
 - 长耗时任务必须放到后台线程或 Qt worker 中执行，不能阻塞 Qt 主线程。
@@ -616,7 +661,7 @@ fastdata/
 2. 深色主题和基础节点视觉样式。
 3. 节点库、画布、属性面板、底部状态区域。
 4. 本地 JSON 配置读取与保存。
-5. Path Input、Prompt Input、Output Folder、Img2Img、Text2Img、Image To PNG、Image To JPG、Resize Match、Resize Image、Prompt Batch Generate 节点。
+5. Path Input、Prompt Input、Output Folder、img2img-banana、img2img-gpt、Text2Img、Image To PNG、Image To JPG、Resize Match、Resize Image、Prompt Batch Generate 节点。
 6. 后台执行，避免 UI 卡死。
 7. 图生图和文生图支持停止。
 8. 工作流保存和打开。

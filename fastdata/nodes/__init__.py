@@ -1,6 +1,6 @@
 """NodeGraphQt node definitions."""
 from fastdata.nodes.base import FastDataNode, NodeStatus
-from fastdata.nodes.generation_nodes import Img2ImgNode, Text2ImgNode
+from fastdata.nodes.generation_nodes import Img2ImgGptNode, Img2ImgNode, Text2ImgNode
 from fastdata.nodes.image_nodes import ImageToJpgNode, ImageToPngNode, ResizeImageNode, ResizeMatchNode
 from fastdata.nodes.input_nodes import PathInputNode, PromptInputNode
 from fastdata.nodes.output_nodes import OutputFolderNode
@@ -12,6 +12,7 @@ NODE_CLASSES = (
     PromptInputNode,
     OutputFolderNode,
     Img2ImgNode,
+    Img2ImgGptNode,
     Text2ImgNode,
     ImageToPngNode,
     ImageToJpgNode,
@@ -33,6 +34,7 @@ __all__ = [
     "PromptInputNode",
     "OutputFolderNode",
     "Img2ImgNode",
+    "Img2ImgGptNode",
     "Text2ImgNode",
     "ImageToPngNode",
     "ImageToJpgNode",

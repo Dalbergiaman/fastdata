@@ -46,15 +46,19 @@ def _result_url(api_url: str) -> str:
 
 
 def _generation_payload(config: dict, prompt: str, images: list[str] | None = None) -> dict:
+    model = config.get("model", "nano-banana-2")
     payload = {
-        "model": config.get("model", "nano-banana-2"),
+        "model": model,
         "prompt": prompt,
         "aspectRatio": config.get("aspect_ratio", "auto"),
-        "imageSize": config.get("image_size", "2K"),
         "replyType": "async",
     }
     if images is not None:
         payload["images"] = images
+    # gpt-image-2 uses aspectRatio (ratio or pixel value) for resolution and
+    # does not accept imageSize; banana-family models keep imageSize.
+    if not model.startswith("gpt-image"):
+        payload["imageSize"] = config.get("image_size", "2K")
     return payload
 
 

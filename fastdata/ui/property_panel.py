@@ -37,6 +37,20 @@ ASPECT_RATIO_CHOICES = [
     "8:1",
 ]
 
+GPT_ASPECT_RATIO_CHOICES = [
+    "1024x1024",
+    "1024x1792",
+    "1792x1024",
+    "2048x2048",
+    "1:1",
+    "16:9",
+    "9:16",
+    "4:3",
+    "3:4",
+    "3:2",
+    "2:3",
+]
+
 
 NODE_PARAMETER_SCHEMAS = {
     "Path Input": [
@@ -52,6 +66,11 @@ NODE_PARAMETER_SCHEMAS = {
         {"key": "model", "label": "Model", "type": "model"},
         {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "aspect_ratio"},
         {"key": "image_size", "label": "Image Size", "type": "choice", "choices": ["1K", "2K", "4K"]},
+        {"key": "only_missing", "label": "Only Missing", "type": "bool"},
+    ],
+    "img2img-gpt": [
+        {"key": "model", "label": "Model", "type": "choice", "choices": ["gpt-image-2", "gpt-image-2-vip"]},
+        {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "choice", "choices": GPT_ASPECT_RATIO_CHOICES},
         {"key": "only_missing", "label": "Only Missing", "type": "bool"},
     ],
     "Text2Img": [

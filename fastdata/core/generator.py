@@ -16,6 +16,19 @@ class StopToken:
         self.is_stopped = True
 
 
+async def _interruptible_sleep(seconds: float, stop_token: StopToken | None) -> None:
+    if stop_token is None:
+        await asyncio.sleep(seconds)
+        return
+    step = 0.1
+    elapsed = 0.0
+    while elapsed < seconds:
+        if stop_token.is_stopped:
+            return
+        await asyncio.sleep(min(step, seconds - elapsed))
+        elapsed += step
+
+
 def _require_api_key(config: dict) -> str:
     api_key = config.get("api_key", "")
     if not api_key:
@@ -72,7 +85,9 @@ async def _poll_task(
     for _ in range(max_retries):
         if stop_token and stop_token.is_stopped:
             raise RuntimeError("Task stopped by user.")
-        await asyncio.sleep(poll_interval)
+        await _interruptible_sleep(poll_interval, stop_token)
+        if stop_token and stop_token.is_stopped:
+            raise RuntimeError("Task stopped by user.")
         async with session.get(
             result_url,
             headers=headers,

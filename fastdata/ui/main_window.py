@@ -9,7 +9,7 @@ from fastdata.ui.graph import GraphWidget, NODE_ALIASES
 from fastdata.ui.property_panel import PropertyPanel
 from fastdata.ui.settings_dialog import SettingsDialog
 from fastdata.ui.theme import apply_app_theme
-from fastdata.ui.workers import NodeWorker, build_execution_plan, execute_node_sequence
+from fastdata.ui.workers import NodeWorker, build_execution_plan, build_snapshots, execute_node_sequence
 from fastdata.core.generator import StopToken
 from fastdata.nodes.base import NodeStatus
 
@@ -52,6 +52,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_token: StopToken | None = None
         self.run_action: QtGui.QAction | None = None
         self.stop_action: QtGui.QAction | None = None
+        self.delete_action: QtGui.QAction | None = None
         self.node_panel_action: QtGui.QAction | None = None
         self.property_panel_action: QtGui.QAction | None = None
         self.log_panel_action: QtGui.QAction | None = None
@@ -88,6 +89,7 @@ class MainWindow(QtWidgets.QMainWindow):
             elif label == "Save":
                 action.triggered.connect(self.save_workflow)
             elif label == "Delete":
+                self.delete_action = action
                 action.triggered.connect(self.delete_selected_nodes)
             elif label == "Run":
                 self.run_action = action
@@ -312,13 +314,21 @@ class MainWindow(QtWidgets.QMainWindow):
         if not path:
             return
         self._is_loading_workflow = True
-        self.graph_widget.graph.load_session(path)
-        self._bind_all_node_dirty_callbacks()
-        self._is_loading_workflow = False
-        self.current_workflow_path = path
-        self.property_panel.set_node(None)
-        self._save_workflow_snapshot()
-        self.set_status(f"Opened workflow: {path}")
+        try:
+            self.graph_widget.graph.load_session(path)
+            self._bind_all_node_dirty_callbacks()
+            self.current_workflow_path = path
+            self.property_panel.set_node(None)
+            self._save_workflow_snapshot()
+            self.set_status(f"Opened workflow: {path}")
+        except Exception as error:
+            self.set_status(f"Failed to open workflow: {error}")
+            QtWidgets.QMessageBox.warning(self, "Open Workflow", f"Could not open workflow:\n{error}")
+            # Re-baseline the dirty snapshot against the (possibly partial) state
+            # so dirty tracking keeps working.
+            self._save_workflow_snapshot()
+        finally:
+            self._is_loading_workflow = False
 
     def save_workflow(self) -> bool:
         path = self.current_workflow_path
@@ -338,6 +348,9 @@ class MainWindow(QtWidgets.QMainWindow):
             self.set_status("Settings saved")
 
     def delete_selected_nodes(self) -> None:
+        if self._worker_thread is not None:
+            self.set_status("Cannot delete nodes while a task is running.")
+            return
         selected = self.graph_widget.graph.selected_nodes()
         if not selected:
             self.set_status("Select node(s) to delete.")
@@ -409,10 +422,28 @@ class MainWindow(QtWidgets.QMainWindow):
         return False
 
     def closeEvent(self, event: QtGui.QCloseEvent) -> None:
-        if self._confirm_discard_unsaved_changes():
-            event.accept()
+        if not self._confirm_discard_unsaved_changes():
+            event.ignore()
             return
-        event.ignore()
+        self._abort_running_worker()
+        event.accept()
+
+    def _abort_running_worker(self) -> None:
+        if self._stop_token:
+            self._stop_token.stop()
+        thread = self._worker_thread
+        if thread is None:
+            return
+        thread.quit()
+        # With interruptible stop the worker returns within moments; the timeout
+        # covers a worker stuck mid network call, and terminate() is safe because
+        # the process is shutting down.
+        if not thread.wait(3000):
+            thread.terminate()
+            thread.wait(2000)
+        self._worker = None
+        self._worker_thread = None
+        self._stop_token = None
 
     def keyPressEvent(self, event: QtGui.QKeyEvent) -> None:
         if event.key() in (QtCore.Qt.Key_Delete, QtCore.Qt.Key_Backspace):
@@ -442,7 +473,8 @@ class MainWindow(QtWidgets.QMainWindow):
         self._stop_token = StopToken()
         try:
             plan = build_execution_plan(node)
-            runner = lambda progress: execute_node_sequence(plan, self._stop_token, progress)
+            snapshots = build_snapshots(plan)
+            runner = lambda progress: execute_node_sequence(snapshots, self._stop_token, progress)
         except Exception as error:
             node.set_status(NodeStatus.ERROR, str(error))
             self.set_status(str(error))
@@ -466,6 +498,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.run_action.setEnabled(False)
         if self.stop_action:
             self.stop_action.setEnabled(True)
+        if self.delete_action:
+            self.delete_action.setEnabled(False)
 
     def stop_current_task(self) -> None:
         if self._stop_token:
@@ -500,7 +534,12 @@ class MainWindow(QtWidgets.QMainWindow):
     def _cleanup_worker(self) -> None:
         if self._worker_thread:
             self._worker_thread.quit()
-            self._worker_thread.wait()
+            # Bound the wait so a worker slow to exit can never freeze the UI on
+            # the finish transition; terminate() is the last resort.
+            if not self._worker_thread.wait(3000):
+                self.set_status("Worker did not exit cleanly; forcing termination.")
+                self._worker_thread.terminate()
+                self._worker_thread.wait(1000)
         if self._worker:
             self._worker.deleteLater()
         if self._worker_thread:
@@ -512,6 +551,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.run_action.setEnabled(True)
         if self.stop_action:
             self.stop_action.setEnabled(False)
+        if self.delete_action:
+            self.delete_action.setEnabled(True)
 
 
 class NodeLibraryItem(QtWidgets.QLabel):

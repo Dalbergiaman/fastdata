@@ -13,7 +13,7 @@ NODE_ALIASES = {
     "Text2Img": "fastdata.text2img",
     "Image To PNG": "fastdata.image_to_png",
     "Image To JPG": "fastdata.image_to_jpg",
-    "Resize Match": "fastdata.resize_match",
+    "Resize To Reference": "fastdata.resize_match",
     "Resize Image": "fastdata.resize_image",
     "Prompt Batch Generate": "fastdata.prompt_batch_generate",
 }

@@ -26,15 +26,15 @@ class ImageToJpgNode(FastDataNode):
         self.add_output("jpg_images")
 
 
-class ResizeMatchNode(FastDataNode):
-    NODE_NAME = "Resize Match"
+class ResizeToReferenceNode(FastDataNode):
+    NODE_NAME = "Resize To Reference"
     CATEGORY = "image"
 
     def __init__(self) -> None:
         super().__init__()
         self.create_property("overwrite", False)
         self.add_input("reference_folder_path")
-        self.add_input("target_folder_path")
+        self.add_input("source_folder_path")
         self.add_input("output_folder")
         self.add_output("matched_images")
 

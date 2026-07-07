@@ -86,7 +86,7 @@ NODE_PARAMETER_SCHEMAS = {
         {"key": "quality", "label": "Quality", "type": "int", "minimum": 1, "maximum": 100},
         {"key": "overwrite", "label": "Overwrite", "type": "bool"},
     ],
-    "Resize Match": [
+    "Resize To Reference": [
         {"key": "overwrite", "label": "Overwrite", "type": "bool"},
     ],
     "Resize Image": [

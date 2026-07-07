@@ -410,14 +410,14 @@ auto
 
 对应参考功能：当前无实现，后续新增。
 
-#### Resize Match 节点
+#### Resize To Reference 节点
 
-用途：按同名参考图分辨率，将目标图等比缩放并居中裁剪。
+用途：把「源图片」按同名「参考图」的分辨率等比缩放并居中裁剪后输出。参考图只提供目标尺寸，不会被修改也不输出；源图片是实际被处理并写入输出目录的图片。两边按文件名同名配对。
 
 输入：
 
-- `reference_folder_path`
-- `target_folder_path`
+- `reference_folder_path`（仅取尺寸）
+- `source_folder_path`（被处理并输出）
 - `output_folder`
 
 参数：
@@ -515,9 +515,9 @@ Output Folder -> Image To JPG
 ### 尺寸匹配工作流
 
 ```text
-Path Input    -> Resize Match  # reference
-Path Input    -> Resize Match  # target
-Output Folder -> Resize Match
+Path Input    -> Resize To Reference  # reference（仅取尺寸）
+Path Input    -> Resize To Reference  # source（被处理并输出）
+Output Folder -> Resize To Reference
 ```
 
 ### 尺寸缩放工作流
@@ -661,7 +661,7 @@ fastdata/
 2. 深色主题和基础节点视觉样式。
 3. 节点库、画布、属性面板、底部状态区域。
 4. 本地 JSON 配置读取与保存。
-5. Path Input、Prompt Input、Output Folder、img2img-banana、img2img-gpt、Text2Img、Image To PNG、Image To JPG、Resize Match、Resize Image、Prompt Batch Generate 节点。
+5. Path Input、Prompt Input、Output Folder、img2img-banana、img2img-gpt、Text2Img、Image To PNG、Image To JPG、Resize To Reference、Resize Image、Prompt Batch Generate 节点。
 6. 后台执行，避免 UI 卡死。
 7. 图生图和文生图支持停止。
 8. 工作流保存和打开。
@@ -1117,7 +1117,7 @@ generate_text_to_images_async(config, output_dir, prompt, count=1, progress_call
 
 - 创建 `Image To PNG` 节点。
 - 创建 `Image To JPG` 节点。
-- 创建 `Resize Match` 节点。
+- 创建 `Resize To Reference` 节点。
 - 创建 `Resize Image` 节点。
 - 所有写文件节点都通过 `output_folder` 输入端口获取输出路径。
 

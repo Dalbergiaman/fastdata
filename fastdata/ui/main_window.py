@@ -199,7 +199,7 @@ class MainWindow(QtWidgets.QMainWindow):
         groups = {
             "Input": ["Path Input", "Prompt Input", "Output Folder"],
             "Generate": ["img2img-banana", "img2img-gpt", "Text2Img"],
-            "Image": ["Image To PNG", "Image To JPG", "Resize Match", "Resize Image"],
+            "Image": ["Image To PNG", "Image To JPG", "Resize To Reference", "Resize Image"],
             "Prompt": ["Prompt Batch Generate"],
         }
         for group_name, nodes in groups.items():

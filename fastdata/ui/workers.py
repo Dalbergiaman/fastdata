@@ -29,7 +29,7 @@ class NodeExecutionError(RuntimeError):
 EXECUTABLE_NODE_NAMES = {
     "Image To PNG",
     "Image To JPG",
-    "Resize Match",
+    "Resize To Reference",
     "Resize Image",
     "Prompt Batch Generate",
     "img2img-banana",
@@ -41,7 +41,7 @@ EXECUTABLE_NODE_NAMES = {
 NODE_INPUTS: dict[str, list[str]] = {
     "Image To PNG": ["folder_path", "output_folder"],
     "Image To JPG": ["folder_path", "output_folder"],
-    "Resize Match": ["reference_folder_path", "target_folder_path", "output_folder"],
+    "Resize To Reference": ["reference_folder_path", "source_folder_path", "output_folder"],
     "Resize Image": ["folder_path", "output_folder"],
     "Prompt Batch Generate": ["prompt", "output_folder"],
     "img2img-banana": ["folder_path", "output_folder", "prompt"],
@@ -52,7 +52,7 @@ NODE_INPUTS: dict[str, list[str]] = {
 NODE_PARAMS: dict[str, list[str]] = {
     "Image To PNG": ["overwrite"],
     "Image To JPG": ["quality", "overwrite"],
-    "Resize Match": ["overwrite"],
+    "Resize To Reference": ["overwrite"],
     "Resize Image": ["target_width", "target_height", "output_format", "resize_mode", "overwrite"],
     "Prompt Batch Generate": ["count", "filename_prefix"],
     "img2img-banana": ["model", "aspect_ratio", "image_size", "only_missing"],
@@ -185,12 +185,12 @@ def build_node_runner(
         overwrite = bool(snap.params.get("overwrite"))
         return lambda progress: convert_images_to_jpg(input_dir, output_dir, quality, overwrite, progress)
 
-    if node_name == "Resize Match":
+    if node_name == "Resize To Reference":
         reference_dir = resolve_folder_input(snap, "reference_folder_path", context)
-        target_dir = resolve_folder_input(snap, "target_folder_path", context)
+        source_dir = resolve_folder_input(snap, "source_folder_path", context)
         output_dir = resolve_output_folder(snap, "output_folder")
         overwrite = bool(snap.params.get("overwrite"))
-        return lambda progress: resize_folder_to_reference(reference_dir, target_dir, output_dir, overwrite, progress)
+        return lambda progress: resize_folder_to_reference(reference_dir, source_dir, output_dir, overwrite, progress)
 
     if node_name == "Resize Image":
         input_dir = resolve_folder_input(snap, "folder_path", context)

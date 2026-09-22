@@ -68,6 +68,7 @@ uv run python -m compileall app.py fastdata
 **Generate**（调用 GrsAI 异步接口，支持停止）
 - **img2img-banana**：图生图，默认模型 `nano-banana-2`，支持 `aspect_ratio`、`image_size`、`only_missing`
 - **img2img-gpt**：图生图，默认模型 `gpt-image-2`，分辨率由 `aspect_ratio`（比例或像素值）控制
+- **Reference Img2Img**：将 `Path Input` 文件夹内的每张底图逐张与属性面板中指定的一张参考图一起生图
 - **Text2Img**：文生图，按 `count` 批量生成
 
 **Image**（本地 Pillow 处理）
@@ -92,6 +93,11 @@ uv run python -m compileall app.py fastdata
 图生图：    Path Input ─┐
             Prompt Input ─┼─▶ img2img-banana ──▶ generated_images
             Output Folder ┘
+
+参考图生图： Path Input (底图文件夹) ─┐
+            Prompt Input              ─┼─▶ Reference Img2Img ──▶ generated_images
+            Output Folder             ─┘
+            Reference Image：在节点属性面板选择一张图片
 
 文生图：    Prompt Input ─┐
             Output Folder ─┴─▶ Text2Img ──▶ generated_images

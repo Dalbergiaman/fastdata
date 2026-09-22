@@ -40,6 +40,23 @@ class Img2ImgGptNode(FastDataNode):
         self.add_output("generated_images")
 
 
+class ReferenceImg2ImgNode(FastDataNode):
+    NODE_NAME = "Reference Img2Img"
+    CATEGORY = "generate"
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.create_property("model", DEFAULT_MODEL)
+        self.create_property("aspect_ratio", DEFAULT_ASPECT_RATIO)
+        self.create_property("image_size", DEFAULT_IMAGE_SIZE)
+        self.create_property("only_missing", True)
+        self.create_property("reference_image_path", "")
+        self.add_input("folder_path")
+        self.add_input("output_folder")
+        self.add_input("prompt")
+        self.add_output("generated_images")
+
+
 class Text2ImgNode(FastDataNode):
     NODE_NAME = "Text2Img"
     CATEGORY = "generate"

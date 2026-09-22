@@ -10,6 +10,7 @@ NODE_ALIASES = {
     "Output Folder": "fastdata.output_folder",
     "img2img-banana": "fastdata.img2img_banana",
     "img2img-gpt": "fastdata.img2img_gpt",
+    "Reference Img2Img": "fastdata.reference_img2img",
     "Text2Img": "fastdata.text2img",
     "Image To PNG": "fastdata.image_to_png",
     "Image To JPG": "fastdata.image_to_jpg",

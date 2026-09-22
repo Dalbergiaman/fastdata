@@ -276,6 +276,28 @@ NodeGraphQt 画布支持整体缩放，用户可以通过画布缩放查看更�
 
 对应参考功能：`generator.AsyncImg2Img`（复用，按 model 家族分支构造请求体）
 
+#### Reference Img2Img 节点
+
+用途：让 `Path Input` 文件夹中的底图逐张与同一个参考图一起调用图生图接口。每个请求的 `images` 按「底图、参考图」顺序传入。
+
+输入：
+
+- `folder_path`（底图文件夹）
+- `output_folder`
+- `prompt`
+
+参数：
+
+- `model`
+- `aspect_ratio`
+- `image_size`
+- `only_missing`
+- `reference_image_path`（在属性面板选择一张参考图）
+
+输出：
+
+- `generated_images`
+
 #### Text2Img 节点
 
 用途：根据 Prompt 调用 GrsAI 接口进行文生图。
@@ -491,6 +513,14 @@ Prompt Input  -> img2img-banana
 Output Folder -> img2img-banana
 ```
 
+### 参考图生图工作流
+
+```text
+Path Input (底图文件夹) -> Reference Img2Img
+Prompt Input -> Reference Img2Img
+Output Folder -> Reference Img2Img
+```
+
 ### 文生图工作流
 
 ```text
@@ -661,7 +691,7 @@ fastdata/
 2. 深色主题和基础节点视觉样式。
 3. 节点库、画布、属性面板、底部状态区域。
 4. 本地 JSON 配置读取与保存。
-5. Path Input、Prompt Input、Output Folder、img2img-banana、img2img-gpt、Text2Img、Image To PNG、Image To JPG、Resize To Reference、Resize Image、Prompt Batch Generate 节点。
+5. Path Input、Prompt Input、Output Folder、img2img-banana、img2img-gpt、Reference Img2Img、Text2Img、Image To PNG、Image To JPG、Resize To Reference、Resize Image、Prompt Batch Generate 节点。
 6. 后台执行，避免 UI 卡死。
 7. 图生图和文生图支持停止。
 8. 工作流保存和打开。

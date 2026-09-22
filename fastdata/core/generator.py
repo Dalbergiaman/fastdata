@@ -105,7 +105,10 @@ async def _poll_task(
         if status == "succeeded":
             results = result.get("results") or []
             if not results or not results[0].get("url"):
-                raise RuntimeError("No image URL in succeeded task result.")
+                # Some providers expose the terminal status before the image
+                # URL is populated. Keep polling until the retry budget is
+                # exhausted instead of failing the item immediately.
+                continue
             return results[0]["url"]
         if status in {"failed", "violation"}:
             raise RuntimeError(f"Task {status}: {result.get('error', status)}")
@@ -196,6 +199,72 @@ async def generate_images_async(
             completed += 1
             if progress_callback:
                 progress_callback(completed, len(all_image_files))
+            return result
+
+    async with aiohttp.ClientSession() as session:
+        processed_results = await asyncio.gather(*(process(image_file) for image_file in image_files))
+    return skipped_results + processed_results
+
+
+async def generate_images_with_reference_async(
+    config: dict,
+    input_dir: str,
+    reference_image_path: str,
+    output_dir: str,
+    prompt: str,
+    only_missing: bool = True,
+    progress_callback: Callable[[int, int], None] | None = None,
+    stop_token: StopToken | None = None,
+) -> list[dict]:
+    source_files = get_image_files(input_dir)
+    if not source_files:
+        raise ValueError("No input images found.")
+
+    reference_path = Path(reference_image_path)
+    if not reference_path.is_file():
+        raise ValueError(f"Reference image does not exist: {reference_path}")
+
+    output_path = ensure_output_dir(output_dir)
+    skipped_results = [
+        {
+            "success": True,
+            "skipped": True,
+            "input": str(image_file),
+            "output": str(output_path / image_file.name),
+        }
+        for image_file in source_files
+        if only_missing and should_skip(output_path / image_file.name, overwrite=False)
+    ]
+    image_files = [
+        image_file
+        for image_file in source_files
+        if not (only_missing and should_skip(output_path / image_file.name, overwrite=False))
+    ]
+    if not image_files:
+        if progress_callback:
+            progress_callback(len(skipped_results), len(source_files))
+        return skipped_results
+
+    api_key = _require_api_key(config)
+    api_url = _build_api_url(config)
+    headers = {"Content-Type": "application/json", "Authorization": f"Bearer {api_key}"}
+    semaphore = asyncio.Semaphore(int(config.get("concurrency", 5)))
+    reference_image = _encode_image(reference_path)
+    completed = len(skipped_results)
+
+    if progress_callback:
+        progress_callback(completed, len(source_files))
+
+    async def process(image_file: Path) -> dict:
+        nonlocal completed
+        async with semaphore:
+            payload = _generation_payload(config, prompt, [_encode_image(image_file), reference_image])
+            result = await _run_payload(session, api_url, headers, payload, output_path / image_file.name, config, stop_token)
+            result["input"] = str(image_file)
+            result["reference"] = str(reference_path)
+            completed += 1
+            if progress_callback:
+                progress_callback(completed, len(source_files))
             return result
 
     async with aiohttp.ClientSession() as session:

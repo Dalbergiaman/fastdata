@@ -73,6 +73,13 @@ NODE_PARAMETER_SCHEMAS = {
         {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "choice", "choices": GPT_ASPECT_RATIO_CHOICES},
         {"key": "only_missing", "label": "Only Missing", "type": "bool"},
     ],
+    "Reference Img2Img": [
+        {"key": "reference_image_path", "label": "Reference Image", "type": "file_path"},
+        {"key": "model", "label": "Model", "type": "model"},
+        {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "aspect_ratio"},
+        {"key": "image_size", "label": "Image Size", "type": "choice", "choices": ["1K", "2K", "4K"]},
+        {"key": "only_missing", "label": "Only Missing", "type": "bool"},
+    ],
     "Text2Img": [
         {"key": "model", "label": "Model", "type": "model"},
         {"key": "aspect_ratio", "label": "Aspect Ratio", "type": "aspect_ratio"},
@@ -179,6 +186,8 @@ class PropertyPanel(QtWidgets.QFrame):
 
         if field_type == "path":
             widget = self._build_path_field(key, str(value))
+        elif field_type == "file_path":
+            widget = self._build_file_path_field(key, str(value))
         elif field_type == "password":
             widget = self._build_text_field(key, str(value), password=True)
         elif field_type == "model":
@@ -250,12 +259,39 @@ class PropertyPanel(QtWidgets.QFrame):
         layout.addWidget(open_button)
         return container
 
+    def _build_file_path_field(self, key: str, value: str) -> QtWidgets.QWidget:
+        container = QtWidgets.QWidget(self._body)
+        layout = QtWidgets.QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(6)
+
+        editor = QtWidgets.QLineEdit(value, container)
+        editor.editingFinished.connect(lambda: self._set_node_property(key, editor.text()))
+        button = QtWidgets.QPushButton("Browse", container)
+        button.clicked.connect(lambda: self._choose_file(key, editor))
+
+        layout.addWidget(editor, 1)
+        layout.addWidget(button)
+        return container
+
     def _choose_folder(self, key: str, editor: QtWidgets.QLineEdit) -> None:
         folder = QtWidgets.QFileDialog.getExistingDirectory(self, "Select Folder", editor.text())
         if not folder:
             return
         editor.setText(folder)
         self._set_node_property(key, folder)
+
+    def _choose_file(self, key: str, editor: QtWidgets.QLineEdit) -> None:
+        path, _ = QtWidgets.QFileDialog.getOpenFileName(
+            self,
+            "Select Reference Image",
+            editor.text(),
+            "Images (*.png *.jpg *.jpeg *.webp *.bmp);;All Files (*)",
+        )
+        if not path:
+            return
+        editor.setText(path)
+        self._set_node_property(key, path)
 
     def _open_folder(self, path_text: str) -> None:
         if not path_text.strip():

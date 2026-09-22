@@ -15,7 +15,12 @@ if sys.platform == "win32":
 from fastdata.config import load_config
 from fastdata.core.convert_jpg import convert_images_to_jpg
 from fastdata.core.convert_png import convert_images_to_png
-from fastdata.core.generator import StopToken, generate_images_async, generate_text_to_images_async
+from fastdata.core.generator import (
+    StopToken,
+    generate_images_async,
+    generate_images_with_reference_async,
+    generate_text_to_images_async,
+)
 from fastdata.core.prompt_writer import generate_prompt_files
 from fastdata.core.resize_image import resize_images
 from fastdata.core.resize_match import resize_folder_to_reference
@@ -34,6 +39,7 @@ EXECUTABLE_NODE_NAMES = {
     "Prompt Batch Generate",
     "img2img-banana",
     "img2img-gpt",
+    "Reference Img2Img",
     "Text2Img",
 }
 
@@ -46,6 +52,7 @@ NODE_INPUTS: dict[str, list[str]] = {
     "Prompt Batch Generate": ["prompt", "output_folder"],
     "img2img-banana": ["folder_path", "output_folder", "prompt"],
     "img2img-gpt": ["folder_path", "output_folder", "prompt"],
+    "Reference Img2Img": ["folder_path", "output_folder", "prompt"],
     "Text2Img": ["prompt", "output_folder"],
 }
 
@@ -57,6 +64,7 @@ NODE_PARAMS: dict[str, list[str]] = {
     "Prompt Batch Generate": ["count", "filename_prefix"],
     "img2img-banana": ["model", "aspect_ratio", "image_size", "only_missing"],
     "img2img-gpt": ["model", "aspect_ratio", "only_missing"],
+    "Reference Img2Img": ["reference_image_path", "model", "aspect_ratio", "image_size", "only_missing"],
     "Text2Img": ["model", "aspect_ratio", "image_size", "count"],
 }
 
@@ -224,6 +232,29 @@ def build_node_runner(
             generate_images_async(config, input_dir, output_dir, prompt, only_missing, progress, token)
         )
 
+    if node_name == "Reference Img2Img":
+        input_dir = resolve_folder_input(snap, "folder_path", context)
+        reference_image_path = str(snap.params.get("reference_image_path") or "")
+        if not reference_image_path:
+            raise NodeExecutionError("Missing reference image path.")
+        prompt = resolve_prompt_input(snap, "prompt")
+        output_dir = resolve_output_folder(snap, "output_folder")
+        token = stop_token or StopToken()
+        only_missing = bool(snap.params.get("only_missing"))
+        config = build_generation_config(snap)
+        return lambda progress: asyncio.run(
+            generate_images_with_reference_async(
+                config,
+                input_dir,
+                reference_image_path,
+                output_dir,
+                prompt,
+                only_missing,
+                progress,
+                token,
+            )
+        )
+
     if node_name == "Text2Img":
         prompt = resolve_prompt_input(snap, "prompt")
         output_dir = resolve_output_folder(snap, "output_folder")
@@ -318,6 +349,16 @@ def execute_node_sequence(
             if progress_callback
             else None
         )
+        if isinstance(result, list):
+            failed_items = [
+                item for item in result
+                if isinstance(item, dict) and item.get("success") is False
+            ]
+            if failed_items:
+                first_error = str(failed_items[0].get("error") or "One or more items failed.")
+                raise NodeExecutionError(
+                    f"{node_label} failed for {len(failed_items)} item(s): {first_error}"
+                )
         context[index] = result
         results.append({"node": snap.name, "result": result})
         if progress_callback:

@@ -22,3 +22,4 @@ class PromptTextWidget(NodeBaseWidget):
         blocker = QtCore.QSignalBlocker(editor)
         editor.setPlainText(text)
         del blocker
+
